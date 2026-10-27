@@ -397,6 +397,7 @@
     copy.addEventListener('click', function () {
       copyText(res.pdfUrl, function (ok) {
         note.textContent = ok ? 'コピーしました' : 'コピーできませんでした。上の URL を長押ししてコピーしてください';
+        note.className = 'copy-note' + (ok ? '' : ' error');
       });
     });
     box.appendChild(copy);
