@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>磐田市倫理法人会 セミナーカレンダー</title>
 <link rel="icon" href="logo.png">
-<link rel="stylesheet" href="style.css?v=4">
+<link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
 <div class="wrap">
@@ -23,15 +23,11 @@
 
   <section id="panel-calendar" class="panel active">
     <div class="msg" id="cal-msg"></div>
-    <div class="month-bar">
-      <div class="month-nav">
-        <button type="button" id="prev" aria-label="前の月">‹</button>
-        <span class="label" id="month-label"></span>
-        <button type="button" id="next" aria-label="次の月">›</button>
-      </div>
-      <button type="button" class="export-btn" id="export-btn">この月を書き出す</button>
+    <div class="month-nav">
+      <button type="button" id="prev" aria-label="前の月">‹</button>
+      <span class="label" id="month-label"></span>
+      <button type="button" id="next" aria-label="次の月">›</button>
     </div>
-    <div class="export-box" id="export-box" hidden></div>
     <div class="legend"><span class="sw zoom"></span>ZOOM　<span class="sw venue"></span>会場</div>
     <table class="grid">
       <thead><tr>
@@ -39,6 +35,14 @@
       </tr></thead>
       <tbody id="grid-body"></tbody>
     </table>
+    <!-- カレンダーの右下：月の書き出し（できたら PDF とスプレッドシートのボタン） -->
+    <div class="export-area">
+      <button type="button" class="export-btn" id="export-btn">
+        <svg class="dl-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 17v3h16v-3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span id="export-label">この月を書き出す</span>
+      </button>
+      <div class="export-box" id="export-box" hidden></div>
+    </div>
     <h2 id="list-title"></h2>
     <div id="list"></div>
   </section>
@@ -54,9 +58,13 @@
     <form id="register-form" class="form" autocomplete="off" novalidate>
       <div class="field"><label for="r-date">日付<span class="req">必須</span></label><input type="date" id="r-date"></div>
       <div class="field"><label for="r-time">開始時刻<span class="req">必須</span></label><input type="time" id="r-time"></div>
+      <div class="field">
+        <label class="check"><input type="checkbox" id="r-zoom">ZOOM（Web）で開催</label>
+        <div class="hint">チェックすると場所に「ZOOM」が入り、カレンダーで青く表示されます</div>
+      </div>
       <div class="field"><label for="r-place">場所</label><input type="text" id="r-place" placeholder="磐田商工会議所 ／ ZOOM"></div>
       <div class="field">
-        <label for="r-address">住所／ZOOM の URL</label>
+        <label for="r-address" id="r-address-label">住所／ZOOM の URL</label>
         <input type="text" id="r-address" inputmode="url" placeholder="静岡県磐田市… ／ https://zoom.us/j/…">
         <div class="hint">会場なら住所（地図が開けます）、ZOOM なら参加用の URL</div>
       </div>
@@ -95,6 +103,6 @@
 </div>
 
 <script src="config.js"></script>
-<script src="app.js?v=4"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>

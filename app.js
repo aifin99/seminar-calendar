@@ -340,12 +340,12 @@
     body.appendChild(participants);
   }
 
-  // ---- 月のカレンダーの書き出し（サーバーでスプレッドシートと PDF を作り、リンクを出す） ----
+  // ---- 月のカレンダーの書き出し（カレンダーの右下。サーバーでスプレッドシートと PDF を作り、開くボタンを出す） ----
   $('export-btn').addEventListener('click', function () {
     var ym = state.ym, no = ++state.exportNo;
     var btn = $('export-btn'), box = $('export-box');
     btn.disabled = true;
-    btn.textContent = '作成中…';
+    $('export-label').textContent = '作成中…';
     box.hidden = true;
     box.innerHTML = '';
     call('exportMonth', [ym], function (res) {
@@ -361,7 +361,7 @@
 
   function resetExportButton() {
     $('export-btn').disabled = false;
-    $('export-btn').textContent = 'この月を書き出す';
+    $('export-label').textContent = 'この月を書き出す';
   }
 
   /** 月を切り替えたら枠を消す（作成中の結果も捨てる） */
@@ -390,39 +390,6 @@
       links.appendChild(a);
     });
     box.appendChild(links);
-    box.appendChild(el('div', 'export-url', res.pdfUrl));
-    var copy = el('button', 'copy-btn', 'リンクをコピー');
-    copy.type = 'button';
-    var note = el('span', 'copy-note');
-    copy.addEventListener('click', function () {
-      copyText(res.pdfUrl, function (ok) {
-        note.textContent = ok ? 'コピーしました' : 'コピーできませんでした。上の URL を長押ししてコピーしてください';
-        note.className = 'copy-note' + (ok ? '' : ' error');
-      });
-    });
-    box.appendChild(copy);
-    box.appendChild(note);
-  }
-
-  function copyText(text, done) {
-    var fallback = function () {
-      var ta = el('textarea');
-      ta.value = text;
-      ta.setAttribute('readonly', '');
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.select();
-      var ok = false;
-      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
-      document.body.removeChild(ta);
-      done(ok);
-    };
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(function () { done(true); }, fallback);
-    } else {
-      fallback();
-    }
   }
 
   /** 住所なら地図、URL（ZOOM など）なら参加ボタン */
@@ -615,6 +582,21 @@
     return { affiliation: t.name, representative: t.representative };
   }
 
+  // ---- ZOOM（Web）で開催（2026-10-27 竹腰さん指示）----
+  // チェックすると場所に「ZOOM」を入れ、住所欄を URL 用の案内にする。外すと場所の「ZOOM…」を消す。
+  // 保存するのは場所と住所・URL だけ（列は増やさない）。色分けは今までどおり kindOf（場所に zoom、または URL）
+  function syncZoom() {
+    var on = $('r-zoom').checked;
+    $('r-address-label').textContent = on ? 'ZOOM の URL' : '住所／ZOOM の URL';
+    $('r-address').placeholder = on ? 'https://zoom.us/j/…' : '静岡県磐田市… ／ https://zoom.us/j/…';
+  }
+  $('r-zoom').addEventListener('change', function () {
+    var place = $('r-place');
+    if (this.checked && !/zoom/i.test(place.value)) place.value = 'ZOOM';
+    if (!this.checked && /zoom/i.test(place.value)) place.value = '';
+    syncZoom();
+  });
+
   function clearFlyer() {
     $('r-flyer').value = '';
     state.flyer = null;
@@ -644,6 +626,8 @@
       $('r-lecturer').value = s.lecturer || '';
       $('r-theme').value = s.theme || '';
     }
+    $('r-zoom').checked = !!s && kindOf(s) === 'zoom';
+    syncZoom();
     selectTeam(s ? s.affiliation : '');
     setNeedsPassphrase(state.needsPassphrase);
     if (!s) {
