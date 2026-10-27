@@ -37,8 +37,32 @@ body {
 .panel { display: none; padding-top: 12px; }
 .panel.active { display: block; }
 
-/* 月の切替 */
-.month-nav { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 8px; }
+/* 月の切替と「この月を書き出す」（スマホでは下、700px 以上で右） */
+.month-bar { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-bottom: 8px; }
+.month-nav { display: flex; align-items: center; justify-content: center; gap: 12px; }
+.export-btn {
+  font-size: 13px; padding: 6px 12px; border: 1px solid #1e3a6e; border-radius: 6px;
+  background: #fff; color: #1e3a6e; cursor: pointer; font-family: inherit;
+}
+.export-btn:disabled { color: #6b7280; border-color: #c7cfdd; cursor: default; }
+@media (min-width: 700px) {
+  .month-bar { flex-direction: row; justify-content: center; gap: 16px; }
+}
+.export-box { margin: 0 0 10px; padding: 10px; background: #fff; border: 1px solid #d5dbe6; border-radius: 8px; font-size: 14px; }
+.export-box .msg { margin-top: 0; }
+.export-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.export-url { margin-top: 8px; font-size: 13px; color: #374151; overflow-wrap: anywhere; word-break: break-all; }
+.copy-btn {
+  margin-top: 6px; font-size: 13px; padding: 6px 12px; border: 1px solid #1e3a6e; border-radius: 6px;
+  background: #fff; color: #1e3a6e; cursor: pointer; font-family: inherit;
+}
+.copy-note { margin-left: 8px; font-size: 13px; color: #1e7b34; }
+
+/* ZOOM と会場の色（帯と縁だけ。文字の色は変えない） */
+.legend { text-align: right; font-size: 12px; color: #374151; margin-bottom: 4px; }
+.legend .sw { display: inline-block; width: 10px; height: 10px; margin-right: 3px; vertical-align: -1px; }
+.legend .sw.zoom { background: #2D8CFF; }
+.legend .sw.venue { background: #F39C3C; }
 .month-nav button {
   font-size: 22px; width: 44px; height: 40px; border: 1px solid #c7cfdd; border-radius: 8px;
   background: #fff; color: #1e3a6e; cursor: pointer;
@@ -67,6 +91,8 @@ table.grid td.today { background: #fff8db; }
 .chip .cn, .chip .cm { display: -webkit-box; -webkit-box-orient: vertical; }
 .chip .cn { font-size: 11px; line-height: 1.25; font-weight: bold; -webkit-line-clamp: 2; }
 .chip .cm { font-size: 10px; line-height: 1.25; color: #374151; -webkit-line-clamp: 3; margin-top: 1px; }
+.chip.zoom { border-left-color: #2D8CFF; }
+.chip.venue { border-left-color: #F39C3C; }
 .cell-detail { display: none; }
 .cell-detail {
   width: 100%; margin-top: 4px; padding: 3px 4px; border: 1px solid #c7cfdd; border-radius: 4px;
@@ -75,6 +101,8 @@ table.grid td.today { background: #fff8db; }
 .cell-detail span { display: block; font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
 .cell-detail .t { font-weight: bold; color: #1e3a6e; }
 .cell-detail .n { font-weight: bold; }
+.cell-detail.zoom { border-left: 3px solid #2D8CFF; }
+.cell-detail.venue { border-left: 3px solid #F39C3C; }
 @media (min-width: 700px) {
   .chip { display: none; }
   .cell-detail { display: block; }
@@ -84,35 +112,41 @@ table.grid td.today { background: #fff8db; }
 /* 月の一覧 */
 h2 { font-size: 16px; color: #1e3a6e; margin: 18px 0 8px; }
 .status { font-size: 14px; color: #6b7280; padding: 12px 4px; }
-.card { position: relative; background: #fff; border: 1px solid #d5dbe6; border-radius: 10px; margin-bottom: 10px; overflow: hidden; }
-/* 開いたカードの右上の小さな「編集」 */
+/* 一覧のカード（タップで詳細ページへ）と詳細ページの見出し。左の帯が ZOOM（青）／会場（オレンジ） */
+.card, .detail-head {
+  display: block; width: 100%; position: relative; text-align: left; background: #fff;
+  border: 1px solid #d5dbe6; border-left: 6px solid #1e3a6e; border-radius: 10px; padding: 10px 12px;
+  font-family: inherit; font-size: inherit; color: inherit;
+}
+.card { margin-bottom: 10px; cursor: pointer; }
+.card.zoom, .detail-head.zoom { border-left-color: #2D8CFF; }
+.card.venue, .detail-head.venue { border-left-color: #F39C3C; }
+.detail-head { padding-right: 64px; }
+/* 詳細ページの右上の小さな「編集」 */
 .edit-btn {
-  display: none; position: absolute; top: 8px; right: 8px; z-index: 1;
+  position: absolute; top: 8px; right: 8px; z-index: 1;
   font-size: 13px; padding: 4px 10px; border: 1px solid #1e3a6e; border-radius: 6px;
   background: #fff; color: #1e3a6e; cursor: pointer; font-family: inherit;
 }
-.card.open .edit-btn { display: block; }
-.card.open .card-head { padding-right: 64px; }
+.back-btn {
+  font-size: 15px; padding: 6px 12px; margin-bottom: 8px; border: 1px solid #c7cfdd; border-radius: 8px;
+  background: #fff; color: #1e3a6e; cursor: pointer; font-family: inherit; font-weight: bold;
+}
+#d-msg { margin: 0 0 8px; }
+#d-msg:empty { display: none; }
 /* 住所・URL */
 .where { margin-top: 12px; font-size: 14px; overflow-wrap: anywhere; }
-.where a.link-btn {
+a.link-btn {
   display: inline-block; margin-top: 4px; padding: 8px 14px; border-radius: 8px; background: #1e3a6e; color: #fff;
   text-decoration: none; font-weight: bold;
 }
-.card.open { border-color: #1e3a6e; box-shadow: 0 0 0 1px #1e3a6e; }
-.card-head {
-  display: block; width: 100%; text-align: left; border: 0; background: none; padding: 10px 12px;
-  font-family: inherit; color: inherit; cursor: pointer;
-}
-.card-head .when { font-size: 17px; font-weight: bold; color: #1e3a6e; }
-.card-head .when .sun { color: #c0392b; }
-.card-head .when .sat { color: #1f6fd1; }
-.card-head .lecturer { font-size: 19px; font-weight: bold; overflow-wrap: anywhere; }
-.card-head .theme { font-size: 16px; overflow-wrap: anywhere; }
-.card-head .meta { font-size: 13px; color: #4b5563; overflow-wrap: anywhere; }
-.card-head .count { font-size: 13px; color: #1e3a6e; }
-.card-body { display: none; padding: 0 12px 12px; border-top: 1px solid #e5e7eb; }
-.card.open .card-body { display: block; }
+.card .when, .detail-head .when { font-size: 17px; font-weight: bold; color: #1e3a6e; }
+.card .when .sun, .detail-head .when .sun { color: #c0392b; }
+.card .when .sat, .detail-head .when .sat { color: #1f6fd1; }
+.card .lecturer, .detail-head .lecturer { font-size: 19px; font-weight: bold; overflow-wrap: anywhere; }
+.card .theme, .detail-head .theme { font-size: 16px; overflow-wrap: anywhere; }
+.card .meta, .detail-head .meta { font-size: 13px; color: #4b5563; overflow-wrap: anywhere; }
+.card .count, .detail-head .count { font-size: 13px; color: #1e3a6e; }
 .flyer { width: 100%; height: auto; display: block; margin-top: 12px; border: 1px solid #e5e7eb; }
 .no-flyer { margin-top: 12px; padding: 24px 8px; text-align: center; background: #f3f4f6; color: #6b7280; border-radius: 6px; }
 .ended { margin-top: 12px; padding: 12px; text-align: center; background: #eceff3; color: #4b5563; font-weight: bold; border-radius: 6px; }

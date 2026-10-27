@@ -12,7 +12,14 @@
     seminars: [],
     needsPassphrase: false,
     requestNo: 0,
-    openId: null,
+    loadedYm: null,     // カレンダーに読み込んである月（まだなら null）
+    monthDirty: false,  // 登録・更新・削除のあと、カレンダーを読み直す
+    calScroll: 0,       // 詳細ページに移る前のカレンダーのスクロール位置
+    view: null,         // 'calendar' / 'detail:<ID>' / 'register'
+    detailNo: 0,
+    inAppHistory: false, // 直前の履歴がこの画面の中のもの（「‹ カレンダーに戻る」でブラウザの戻ると同じ動きにする）
+    flash: '',          // 詳細ページの上に出すメッセージ（登録しました／更新しました）
+    exportNo: 0,
     flyer: null, // { base64, mimeType }
     teams: [],   // [{ name, representative }]（所属チームシート）
     edit: null   // 編集中：{ seminar }。新規登録のときは null
@@ -59,10 +66,17 @@
     node.className = 'msg' + (kind ? ' ' + kind : '');
   }
 
-  // ---- メニュー（カレンダー／セミナー登録の切替） ----
+  /** ZOOM か会場か。住所・URL が http(s):// で始まる、または場所に zoom を含むなら ZOOM */
+  function kindOf(s) {
+    return /^https?:\/\//i.test(s.address || '') || /zoom/i.test(s.place || '') ? 'zoom' : 'venue';
+  }
+
+  // ---- メニュー（カレンダー／セミナー登録の切替）。詳細ページはカレンダーの一部として扱う ----
   function showTab(name) {
     ['calendar', 'register'].forEach(function (t) {
-      $('tab-' + t).classList.toggle('active', t === name);
+      $('tab-' + t).classList.toggle('active', t === (name === 'detail' ? 'calendar' : name));
+    });
+    ['calendar', 'detail', 'register'].forEach(function (t) {
       $('panel-' + t).classList.toggle('active', t === name);
     });
     setMenuOpen(false);
@@ -79,20 +93,68 @@
   document.addEventListener('click', function (ev) {
     if (!$('menu').hidden && !$('menu').contains(ev.target)) setMenuOpen(false);
   });
-  $('tab-calendar').addEventListener('click', function () { showTab('calendar'); });
+  $('tab-calendar').addEventListener('click', function () {
+    clearHash(false);
+    showCalendar();
+  });
   $('tab-register').addEventListener('click', function () {
+    clearHash(false);
+    state.view = 'register';
     startForm(null);
     showTab('register');
   });
+
+  // ---- 画面の切替（URL のハッシュ：#s=<セミナーID> なら詳細ページ、無ければカレンダー） ----
+  function route() {
+    var m = /^#s=(.+)$/.exec(location.hash);
+    var id = m ? decodeURIComponent(m[1]) : null;
+    if (state.view === (id ? 'detail:' + id : 'calendar')) return; // hashchange と popstate の両方が来ても1回だけ
+    if (id) showDetail(id); else showCalendar();
+  }
+  function onHistory() {
+    state.inAppHistory = true;
+    route();
+  }
+  window.addEventListener('hashchange', onHistory);
+  window.addEventListener('popstate', onHistory);
+
+  /** 詳細ページへ（ハッシュを履歴に積むので、ブラウザの「戻る」でカレンダーに戻れる） */
+  function goDetail(id) {
+    var hash = '#s=' + encodeURIComponent(id);
+    if (location.hash === hash) { state.view = null; route(); } else location.hash = hash;
+  }
+
+  /** ハッシュを外す（replace なら今の履歴を置き換え、そうでなければ積む）。画面の切替は呼んだ側で行う */
+  function clearHash(replace) {
+    if (!location.hash) return;
+    var url = location.pathname + location.search;
+    if (replace) history.replaceState(null, '', url); else history.pushState(null, '', url);
+  }
+
+  function showCalendar() {
+    var back = state.view !== 'calendar';
+    state.view = 'calendar';
+    showTab('calendar');
+    if (state.loadedYm !== state.ym || state.monthDirty) loadMonth(state.ym);
+    else if (back) window.scrollTo(0, state.calScroll);
+  }
 
   // ---- カレンダー ----
   $('prev').addEventListener('click', function () { setMsg($('cal-msg'), ''); loadMonth(addMonth(state.ym, -1)); });
   $('next').addEventListener('click', function () { setMsg($('cal-msg'), ''); loadMonth(addMonth(state.ym, 1)); });
 
-  function loadMonth(ym, openId) {
+  /** カードやチップをタップ → 詳細ページ */
+  function openSeminar(id) {
+    state.calScroll = window.pageYOffset;
+    goDetail(id);
+  }
+
+  function loadMonth(ym) {
     state.ym = ym;
+    state.loadedYm = ym;
+    state.monthDirty = false;
     state.seminars = [];
-    state.openId = null;
+    resetExport();
     var no = ++state.requestNo;
     $('month-label').textContent = Number(ym.slice(0, 4)) + '年' + Number(ym.slice(5, 7)) + '月';
     renderGrid();
@@ -107,7 +169,6 @@
       setNeedsPassphrase(res.needsPassphrase);
       renderGrid();
       renderList();
-      if (openId) openCard(openId, true);
     }, function (err) {
       if (no !== state.requestNo) return;
       showListError('読み込めませんでした：' + err);
@@ -139,21 +200,22 @@
       if (date === state.today) td.className = 'today';
       td.appendChild(el('div', 'day' + (i % 7 === 0 ? ' sun' : i % 7 === 6 ? ' sat' : ''), String(d)));
       (byDate[date] || []).forEach(function (s) {
-        var chip = el('button', 'chip');
+        var kind = kindOf(s);
+        var chip = el('button', 'chip ' + kind);
         chip.type = 'button';
         chip.appendChild(el('span', 'ct', s.time));
         chip.appendChild(el('span', 'cn', s.lecturer));
         if (s.theme) chip.appendChild(el('span', 'cm', s.theme));
         chip.title = s.time + ' ' + s.lecturer + (s.theme ? ' ' + s.theme : '');
-        chip.addEventListener('click', function () { openCard(s.id, true); });
+        chip.addEventListener('click', function () { openSeminar(s.id); });
         td.appendChild(chip);
 
-        var box = el('button', 'cell-detail');
+        var box = el('button', 'cell-detail ' + kind);
         box.type = 'button';
         [['t', s.time], ['', s.place], ['', s.affiliation], ['n', s.lecturer], ['', s.theme]].forEach(function (p) {
           box.appendChild(el('span', p[0], p[1] || ' '));
         });
-        box.addEventListener('click', function () { openCard(s.id, true); });
+        box.addEventListener('click', function () { openSeminar(s.id); });
         td.appendChild(box);
       });
       tr.appendChild(td);
@@ -170,63 +232,92 @@
       return;
     }
     state.seminars.forEach(function (s) {
-      var card = el('div', 'card');
+      var card = el('button', 'card ' + kindOf(s));
+      card.type = 'button';
       card.id = 'card-' + s.id;
-      var head = el('button', 'card-head');
-      head.type = 'button';
-      var when = el('div', 'when');
-      var wd = weekdayOf(s.date);
-      when.appendChild(document.createTextNode(dateLabel(s.date) + '（'));
-      when.appendChild(el('span', wd === 0 ? 'sun' : wd === 6 ? 'sat' : '', WEEK[wd]));
-      when.appendChild(document.createTextNode('） ' + s.time));
-      head.appendChild(when);
-      head.appendChild(el('div', 'lecturer', s.lecturer));
-      if (s.theme) head.appendChild(el('div', 'theme', '「' + s.theme + '」'));
-      var team = s.affiliation && ('所属：' + s.affiliation + (s.representative ? '（代表 ' + s.representative + '）' : ''));
-      var meta = [s.place && ('場所：' + s.place), team].filter(Boolean).join('　');
-      if (meta) head.appendChild(el('div', 'meta', meta));
-      head.appendChild(el('div', 'count', '参加予定 ' + s.count + '名'));
-      head.addEventListener('click', function () {
-        if (state.openId === s.id) closeCard(s.id); else openCard(s.id, false);
-      });
-      card.appendChild(head);
-      var edit = el('button', 'edit-btn', '編集');
-      edit.type = 'button';
-      edit.addEventListener('click', function () { openEdit(s); });
-      card.appendChild(edit);
-      card.appendChild(el('div', 'card-body'));
+      fillHead(card, s);
+      card.addEventListener('click', function () { openSeminar(s.id); });
       list.appendChild(card);
     });
   }
 
-  function closeCard(id) {
-    var card = $('card-' + id);
-    if (card) { card.classList.remove('open'); card.querySelector('.card-body').innerHTML = ''; }
-    if (state.openId === id) state.openId = null;
+  /** カードと詳細ページの見出し：日付（曜日）・開始時刻／講師名／テーマ／場所・所属／参加予定人数 */
+  function fillHead(node, s) {
+    var when = el('div', 'when');
+    var wd = weekdayOf(s.date);
+    when.appendChild(document.createTextNode(dateLabel(s.date) + '（'));
+    when.appendChild(el('span', wd === 0 ? 'sun' : wd === 6 ? 'sat' : '', WEEK[wd]));
+    when.appendChild(document.createTextNode('） ' + s.time));
+    node.appendChild(when);
+    node.appendChild(el('div', 'lecturer', s.lecturer));
+    if (s.theme) node.appendChild(el('div', 'theme', '「' + s.theme + '」'));
+    var team = s.affiliation && ('所属：' + s.affiliation + (s.representative ? '（代表 ' + s.representative + '）' : ''));
+    var meta = [s.place && ('場所：' + s.place), team].filter(Boolean).join('　');
+    if (meta) node.appendChild(el('div', 'meta', meta));
+    node.appendChild(el('div', 'count', '参加予定 ' + s.count + '名'));
   }
 
-  function openCard(id, scroll) {
-    if (state.openId && state.openId !== id) closeCard(state.openId);
-    var card = $('card-' + id);
-    if (!card) return;
-    var s = state.seminars.filter(function (x) { return x.id === id; })[0];
-    state.openId = id;
-    card.classList.add('open');
-    var body = card.querySelector('.card-body');
-    body.innerHTML = '';
-    body.appendChild(el('div', 'status', '読み込み中…'));
-    if (scroll) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  /** 申込のあと、詳細ページとカレンダーの一覧の人数をそろえる */
+  function setCount(id, n) {
+    state.seminars.forEach(function (x) { if (x.id === id) x.count = n; });
+    [$('detail').querySelector('.detail-head .count'), $('card-' + id) && $('card-' + id).querySelector('.count')]
+      .forEach(function (node) { if (node) node.textContent = '参加予定 ' + n + '名'; });
+  }
+
+  // ---- 詳細ページ（#s=<ID>）。見出しは手元の情報で先に出し、チラシと参加者は開いたときに取りに行く ----
+  function showDetail(id) {
+    state.view = 'detail:' + id;
+    var no = ++state.detailNo;
+    showTab('detail');
+    setMsg($('d-msg'), state.flash, state.flash ? 'ok' : '');
+    state.flash = '';
+    var box = $('detail');
+    box.innerHTML = '';
+    var known = state.seminars.filter(function (x) { return x.id === id; })[0];
+    if (known) {
+      renderDetailHead(box, known);
+      if (known.address) box.appendChild(whereBox(known.address));
+    }
+    box.appendChild(el('div', 'no-flyer', '読み込み中…'));
     call('getDetail', [id], function (res) {
-      if (state.openId !== id) return;
-      body.innerHTML = '';
-      if (!res || !res.ok) { body.appendChild(el('div', 'msg error', (res && res.reason) || '読み込めませんでした')); return; }
-      renderDetail(body, s, res);
+      if (no !== state.detailNo) return;
+      box.innerHTML = '';
+      if (!res || !res.ok) {
+        var notFound = res && /見つかりません/.test(res.reason || '');
+        box.appendChild(el('div', notFound ? 'status' : 'msg error', notFound ? 'このセミナーは見つかりません' : (res && res.reason) || '読み込めませんでした'));
+        return;
+      }
+      var s = {};
+      for (var k in res.seminar) s[k] = res.seminar[k];
+      s.count = (res.participants || []).length;
+      // #s=… を直接開いたとき：戻るとこのセミナーの月のカレンダー
+      if (state.loadedYm === null) state.ym = s.date.slice(0, 7);
+      renderDetailHead(box, s);
+      renderDetail(box, s, res);
+      setCount(s.id, s.count);
     }, function (err) {
-      if (state.openId !== id) return;
-      body.innerHTML = '';
-      body.appendChild(el('div', 'msg error', '読み込めませんでした：' + err));
+      if (no !== state.detailNo) return;
+      box.innerHTML = '';
+      box.appendChild(el('div', 'msg error', '読み込めませんでした：' + err));
     });
   }
+
+  function renderDetailHead(box, s) {
+    var head = el('div', 'detail-head ' + kindOf(s));
+    fillHead(head, s);
+    var edit = el('button', 'edit-btn', '編集');
+    edit.type = 'button';
+    edit.addEventListener('click', function () { openEdit(s); });
+    head.appendChild(edit);
+    box.appendChild(head);
+  }
+
+  $('d-back').addEventListener('click', function () {
+    // 画面の中から来たならブラウザの「戻る」と同じ。#s=… を直接開いたときは、そのセミナーの月のカレンダーへ
+    if (state.inAppHistory) { history.back(); return; }
+    clearHash(true);
+    showCalendar();
+  });
 
   function renderDetail(body, s, detail) {
     if (s.address) body.appendChild(whereBox(s.address));
@@ -249,6 +340,90 @@
     body.appendChild(participants);
   }
 
+  // ---- 月のカレンダーの書き出し（サーバーでスプレッドシートと PDF を作り、リンクを出す） ----
+  $('export-btn').addEventListener('click', function () {
+    var ym = state.ym, no = ++state.exportNo;
+    var btn = $('export-btn'), box = $('export-box');
+    btn.disabled = true;
+    btn.textContent = '作成中…';
+    box.hidden = true;
+    box.innerHTML = '';
+    call('exportMonth', [ym], function (res) {
+      if (no !== state.exportNo) return;
+      resetExportButton();
+      renderExport(res);
+    }, function (err) {
+      if (no !== state.exportNo) return;
+      resetExportButton();
+      renderExport({ ok: false, reason: '書き出せませんでした：' + err });
+    });
+  });
+
+  function resetExportButton() {
+    $('export-btn').disabled = false;
+    $('export-btn').textContent = 'この月を書き出す';
+  }
+
+  /** 月を切り替えたら枠を消す（作成中の結果も捨てる） */
+  function resetExport() {
+    state.exportNo++;
+    resetExportButton();
+    $('export-box').hidden = true;
+    $('export-box').innerHTML = '';
+  }
+
+  function renderExport(res) {
+    var box = $('export-box');
+    box.innerHTML = '';
+    box.hidden = false;
+    var safe = function (u) { return /^https:\/\//.test(u || ''); };
+    if (!res || !res.ok || !safe(res.pdfUrl) || !safe(res.sheetUrl)) {
+      box.appendChild(el('div', 'msg error', (res && res.reason) || '書き出せませんでした'));
+      return;
+    }
+    var links = el('div', 'export-links');
+    [[res.pdfUrl, 'PDF を開く'], [res.sheetUrl, 'スプレッドシートを開く']].forEach(function (p) {
+      var a = el('a', 'link-btn', p[1]);
+      a.href = p[0];
+      a.target = '_blank';
+      a.rel = 'noopener';
+      links.appendChild(a);
+    });
+    box.appendChild(links);
+    box.appendChild(el('div', 'export-url', res.pdfUrl));
+    var copy = el('button', 'copy-btn', 'リンクをコピー');
+    copy.type = 'button';
+    var note = el('span', 'copy-note');
+    copy.addEventListener('click', function () {
+      copyText(res.pdfUrl, function (ok) {
+        note.textContent = ok ? 'コピーしました' : 'コピーできませんでした。上の URL を長押ししてコピーしてください';
+      });
+    });
+    box.appendChild(copy);
+    box.appendChild(note);
+  }
+
+  function copyText(text, done) {
+    var fallback = function () {
+      var ta = el('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      done(ok);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { done(true); }, fallback);
+    } else {
+      fallback();
+    }
+  }
+
   /** 住所なら地図、URL（ZOOM など）なら参加ボタン */
   function whereBox(address) {
     var box = el('div', 'where');
@@ -268,15 +443,16 @@
     return box;
   }
 
-  // ---- 編集（カード右上の「編集」→ 登録フォームに今の内容を入れて開く。合言葉は「更新する」「削除」のときにサーバーで照合） ----
+  // ---- 編集（詳細ページ右上の「編集」→ 登録フォームに今の内容を入れて開く。合言葉は「更新する」「削除」のときにサーバーで照合） ----
   function openEdit(s) {
     call('getFormOptions', [], function (opt) {
       setTeams(opt.teams);
       state.needsPassphrase = !!opt.needsPassphrase;
+      state.view = 'register';
       startForm(s);
       showTab('register');
     }, function (err) {
-      setMsg($('cal-msg'), '編集画面を開けませんでした：' + err, 'error');
+      setMsg($('d-msg'), '編集画面を開けませんでした：' + err, 'error');
     });
   }
 
@@ -330,8 +506,7 @@
         introInput.value = '';
         setMsg(msg, '申し込みました', 'ok');
         s.count = res.participants.length;
-        var count = $('card-' + s.id).querySelector('.count');
-        if (count) count.textContent = '参加予定 ' + s.count + '名';
+        setCount(s.id, s.count);
       }, function (err) {
         btn.disabled = false;
         setMsg(msg, '申し込めませんでした：' + err, 'error');
@@ -479,9 +654,11 @@
     }
   }
 
+  // 編集をやめる → 今の URL の画面（編集を始めた詳細ページ）に戻る
   $('r-cancel').addEventListener('click', function () {
     startForm(null);
-    showTab('calendar');
+    state.view = null;
+    route();
   });
 
   // ---- 削除（編集画面の赤いボタン → 確認 → 合言葉をサーバーで照合して行を消す） ----
@@ -512,10 +689,13 @@
         setMsg($('r-delete-msg'), (res && res.reason) || '削除できませんでした', 'error');
         return;
       }
+      // 削除したセミナーの詳細（#s=…）の履歴は置き換えて、その月のカレンダーへ
       startForm(null);
       setMsg($('cal-msg'), '削除しました', 'ok');
-      showTab('calendar');
-      loadMonth(res.yearMonth);
+      clearHash(true);
+      state.ym = res.yearMonth;
+      state.monthDirty = true;
+      showCalendar();
     }, function (err) {
       btn.disabled = false;
       setMsg($('r-delete-msg'), '削除できませんでした：' + err, 'error');
@@ -608,10 +788,11 @@
         if (res && res.reason === '合言葉が違います') setNeedsPassphrase(true);
         return;
       }
+      // 登録・更新したセミナーの詳細ページへ。カレンダーは戻ったときに読み直す
       startForm(null);
-      setMsg($('cal-msg'), editing ? '更新しました' : '登録しました', 'ok');
-      showTab('calendar');
-      loadMonth(res.yearMonth, res.id);
+      state.monthDirty = true;
+      state.flash = editing ? '更新しました' : '登録しました';
+      goDetail(res.id);
     }, function (err) {
       $('r-submit').disabled = false;
       setMsg(msg, '保存できませんでした：' + err, 'error');
@@ -619,5 +800,5 @@
   });
 
   setTeams([]);
-  loadMonth(state.ym);
+  route();
 })();

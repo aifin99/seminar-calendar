@@ -23,11 +23,16 @@
 
   <section id="panel-calendar" class="panel active">
     <div class="msg" id="cal-msg"></div>
-    <div class="month-nav">
-      <button type="button" id="prev" aria-label="前の月">‹</button>
-      <span class="label" id="month-label"></span>
-      <button type="button" id="next" aria-label="次の月">›</button>
+    <div class="month-bar">
+      <div class="month-nav">
+        <button type="button" id="prev" aria-label="前の月">‹</button>
+        <span class="label" id="month-label"></span>
+        <button type="button" id="next" aria-label="次の月">›</button>
+      </div>
+      <button type="button" class="export-btn" id="export-btn">この月を書き出す</button>
     </div>
+    <div class="export-box" id="export-box" hidden></div>
+    <div class="legend"><span class="sw zoom"></span>ZOOM　<span class="sw venue"></span>会場</div>
     <table class="grid">
       <thead><tr>
         <th class="sun">日</th><th>月</th><th>火</th><th>水</th><th>木</th><th>金</th><th class="sat">土</th>
@@ -36,6 +41,12 @@
     </table>
     <h2 id="list-title"></h2>
     <div id="list"></div>
+  </section>
+
+  <section id="panel-detail" class="panel">
+    <button type="button" class="back-btn" id="d-back">‹ カレンダーに戻る</button>
+    <div class="msg" id="d-msg"></div>
+    <div id="detail"></div>
   </section>
 
   <section id="panel-register" class="panel">
