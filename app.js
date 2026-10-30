@@ -351,6 +351,7 @@
   function showManual() {
     state.manualFrom = state.view;
     state.view = 'manual';
+    showManualTab('apply');
     showTab('manual');
   }
 
@@ -363,9 +364,18 @@
   $('m-back-top').addEventListener('click', manualBack);
   $('m-back-bottom').addEventListener('click', manualBack);
 
-  // 目次：ハッシュを変えずに（#manual のまま）見出しまで動かす
-  Array.prototype.forEach.call(document.querySelectorAll('[data-jump]'), function (b) {
-    b.addEventListener('click', function () { $(b.getAttribute('data-jump')).scrollIntoView(); });
+  // タブ（申し込む／登録する／直す・削除する）：押したタブの中身だけ出す。ハッシュは #manual のまま
+  var manualTabs = document.querySelectorAll('[data-tab]');
+  function showManualTab(name) {
+    Array.prototype.forEach.call(manualTabs, function (b) {
+      var on = b.getAttribute('data-tab') === name;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-selected', String(on));
+      $('manual-' + b.getAttribute('data-tab')).hidden = !on;
+    });
+  }
+  Array.prototype.forEach.call(manualTabs, function (b) {
+    b.addEventListener('click', function () { showManualTab(b.getAttribute('data-tab')); });
   });
 
   // ---- 月のカレンダーの書き出し（カレンダーの右下。サーバーでスプレッドシートと PDF を作り、開くボタンを出す） ----
