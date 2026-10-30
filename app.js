@@ -15,7 +15,8 @@
     loadedYm: null,     // カレンダーに読み込んである月（まだなら null）
     monthDirty: false,  // 登録・更新・削除のあと、カレンダーを読み直す
     calScroll: 0,       // 詳細ページに移る前のカレンダーのスクロール位置
-    view: null,         // 'calendar' / 'detail:<ID>' / 'register'
+    view: null,         // 'calendar' / 'detail:<ID>' / 'register' / 'manual'
+    manualFrom: null,   // 使い方ページ（#manual）の直前の画面（直接開いたときは null）
     detailNo: 0,
     inAppHistory: false, // 直前の履歴がこの画面の中のもの（「‹ カレンダーに戻る」でブラウザの戻ると同じ動きにする）
     flash: '',          // 詳細ページの上に出すメッセージ（登録しました／更新しました）
@@ -71,12 +72,12 @@
     return /^https?:\/\//i.test(s.address || '') || /zoom/i.test(s.place || '') ? 'zoom' : 'venue';
   }
 
-  // ---- メニュー（カレンダー／セミナー登録の切替）。詳細ページはカレンダーの一部として扱う ----
+  // ---- メニュー（カレンダー／セミナー登録／使い方の切替）。詳細ページはカレンダーの一部として扱う ----
   function showTab(name) {
-    ['calendar', 'register'].forEach(function (t) {
+    ['calendar', 'register', 'manual'].forEach(function (t) {
       $('tab-' + t).classList.toggle('active', t === (name === 'detail' ? 'calendar' : name));
     });
-    ['calendar', 'detail', 'register'].forEach(function (t) {
+    ['calendar', 'detail', 'register', 'manual'].forEach(function (t) {
       $('panel-' + t).classList.toggle('active', t === name);
     });
     setMenuOpen(false);
@@ -103,13 +104,19 @@
     startForm(null);
     showTab('register');
   });
+  // 使い方：#manual を履歴に積む（ブラウザの「戻る」で元の画面に戻れる）
+  $('tab-manual').addEventListener('click', function () {
+    if (state.view === 'calendar') state.calScroll = window.pageYOffset;
+    if (location.hash === '#manual') showTab('manual'); else location.hash = '#manual';
+  });
 
-  // ---- 画面の切替（URL のハッシュ：#s=<セミナーID> なら詳細ページ、無ければカレンダー） ----
+  // ---- 画面の切替（URL のハッシュ：#s=<セミナーID> なら詳細ページ、#manual なら使い方、無ければカレンダー） ----
   function route() {
     var m = /^#s=(.+)$/.exec(location.hash);
     var id = m ? decodeURIComponent(m[1]) : null;
-    if (state.view === (id ? 'detail:' + id : 'calendar')) return; // hashchange と popstate の両方が来ても1回だけ
-    if (id) showDetail(id); else showCalendar();
+    var view = location.hash === '#manual' ? 'manual' : id ? 'detail:' + id : 'calendar';
+    if (state.view === view) return; // hashchange と popstate の両方が来ても1回だけ
+    if (view === 'manual') showManual(); else if (id) showDetail(id); else showCalendar();
   }
   function onHistory() {
     state.inAppHistory = true;
@@ -339,6 +346,27 @@
     renderParticipants(participants, detail);
     body.appendChild(participants);
   }
+
+  // ---- 使い方（#manual）。中身は index.html に書いてある。画像は loading="lazy" で開いたときに読む ----
+  function showManual() {
+    state.manualFrom = state.view;
+    state.view = 'manual';
+    showTab('manual');
+  }
+
+  /** 上下の「‹ カレンダーに戻る」：カレンダーから来たならブラウザの「戻る」と同じ。それ以外はカレンダーへ（直接開いたときは履歴を置き換える） */
+  function manualBack() {
+    if (state.manualFrom === 'calendar') { history.back(); return; }
+    clearHash(state.manualFrom === null);
+    showCalendar();
+  }
+  $('m-back-top').addEventListener('click', manualBack);
+  $('m-back-bottom').addEventListener('click', manualBack);
+
+  // 目次：ハッシュを変えずに（#manual のまま）見出しまで動かす
+  Array.prototype.forEach.call(document.querySelectorAll('[data-jump]'), function (b) {
+    b.addEventListener('click', function () { $(b.getAttribute('data-jump')).scrollIntoView(); });
+  });
 
   // ---- 月のカレンダーの書き出し（カレンダーの右下。サーバーでスプレッドシートと PDF を作り、開くボタンを出す） ----
   $('export-btn').addEventListener('click', function () {

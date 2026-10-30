@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>磐田市倫理法人会 セミナーカレンダー</title>
 <link rel="icon" href="logo.png">
-<link rel="stylesheet" href="style.css?v=5">
+<link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
 <div class="wrap">
@@ -18,6 +18,7 @@
     <nav class="menu" id="menu" hidden>
       <button type="button" id="tab-calendar" class="active">カレンダー</button>
       <button type="button" id="tab-register">セミナー登録</button>
+      <button type="button" id="tab-manual">使い方</button>
     </nav>
   </header>
 
@@ -100,9 +101,73 @@
       </div>
     </form>
   </section>
+
+  <!-- 使い方（#manual）。画像は src\manual-capture\ の手順で撮る（架空データ） -->
+  <section id="panel-manual" class="panel">
+    <div class="manual">
+      <button type="button" class="back-btn" id="m-back-top">‹ カレンダーに戻る</button>
+      <h2 class="page-title">使い方</h2>
+      <div class="manual-toc">
+        <button type="button" data-jump="manual-apply">1. セミナーに申し込む</button>
+        <button type="button" data-jump="manual-register">2. セミナーを登録する</button>
+      </div>
+
+      <h3 id="manual-apply">1. セミナーに申し込む</h3>
+      <ol class="steps">
+        <li><p><span class="num">1</span><span>カレンダーで、申し込みたいセミナーを押します。</span></p>
+          <img class="shot" src="manual/01-calendar-card.png" width="780" height="1400" loading="lazy" alt="カレンダーで、申し込みたいセミナーを押します。"></li>
+        <li><p><span class="num">2</span><span>詳細ページが開きます。チラシを確認します。</span></p>
+          <img class="shot" src="manual/02-detail-flyer.jpg" width="780" height="1400" loading="lazy" alt="詳細ページが開きます。チラシを確認します。"></li>
+        <li><p><span class="num">3</span><span>「所属チーム」を選び、「参加者名」を入れます。会員以外の方は「ゲスト（会員以外の方）」を選び、「紹介者名」も入れてください。</span></p>
+          <img class="shot" src="manual/03-apply-form.png" width="780" height="1400" loading="lazy" alt="「所属チーム」を選び、「参加者名」を入れます。会員以外の方は「ゲスト（会員以外の方）」を選び、「紹介者名」も入れてください。"></li>
+        <li><p><span class="num">4</span><span>「申し込む」を押します。</span></p>
+          <img class="shot" src="manual/04-apply-button.png" width="780" height="1400" loading="lazy" alt="「申し込む」を押します。"></li>
+        <li><p><span class="num">5</span><span>「申し込みました」と出て、「参加予定」の一覧に名前が出れば完了です。</span></p>
+          <img class="shot" src="manual/05-apply-done.png" width="780" height="1400" loading="lazy" alt="「申し込みました」と出て、「参加予定」の一覧に名前が出れば完了です。"></li>
+      </ol>
+      <div class="manual-note">
+        <ul>
+          <li>同じ名前では2回申し込めません。</li>
+          <li>開催日が過ぎたセミナーは「終了」と出て、申し込めません。</li>
+          <li>申込を取り消すときは、登録を担当する方に伝えてください。</li>
+        </ul>
+      </div>
+
+      <h3 id="manual-register">2. セミナーを登録する</h3>
+      <p class="manual-lead">登録を担当する方向けです。登録には合言葉が必要です。登録を担当する方は、合言葉を受け取ってください。</p>
+      <ol class="steps">
+        <li><p><span class="num">1</span><span>右上の「☰」（メニュー）を押し、「セミナー登録」を選びます。</span></p>
+          <img class="shot" src="manual/06-menu-register.jpg" width="780" height="1400" loading="lazy" alt="右上の「☰」（メニュー）を押し、「セミナー登録」を選びます。"></li>
+        <li><p><span class="num">2</span><span>「日付」「開始時刻」「講師名」は必ず入れます。</span></p>
+          <img class="shot" src="manual/07-register-required.png" width="780" height="1400" loading="lazy" alt="「日付」「開始時刻」「講師名」は必ず入れます。"></li>
+        <li><p><span class="num">3</span><span>ZOOM で開催するときは「ZOOM（Web）で開催」にチェックを入れ、「ZOOM の URL」を入れます。会場で開催するときは「場所」と住所を入れます。</span></p>
+          <img class="shot" src="manual/08-register-zoom.png" width="780" height="1400" loading="lazy" alt="ZOOM で開催するときは「ZOOM（Web）で開催」にチェックを入れ、「ZOOM の URL」を入れます。会場で開催するときは「場所」と住所を入れます。"></li>
+        <li><p><span class="num">4</span><span>「所属」でチームを選び、「テーマ」を入れます。</span></p>
+          <img class="shot" src="manual/09-register-team.png" width="780" height="1400" loading="lazy" alt="「所属」でチームを選び、「テーマ」を入れます。"></li>
+        <li><p><span class="num">5</span><span>「チラシ」で画像を選びます。チラシは後から「編集」で足すこともできます。</span></p>
+          <img class="shot" src="manual/10-register-flyer.jpg" width="780" height="1400" loading="lazy" alt="「チラシ」で画像を選びます。チラシは後から「編集」で足すこともできます。"></li>
+        <li><p><span class="num">6</span><span>「合言葉」を入れて「保存」を押します。</span></p>
+          <img class="shot" src="manual/11-register-save.jpg" width="780" height="1400" loading="lazy" alt="「合言葉」を入れて「保存」を押します。"></li>
+        <li><p><span class="num">7</span><span>「登録しました」と出て、登録したセミナーの詳細ページが開けば完了です。</span></p>
+          <img class="shot" src="manual/12-register-done.jpg" width="780" height="1400" loading="lazy" alt="「登録しました」と出て、登録したセミナーの詳細ページが開けば完了です。"></li>
+      </ol>
+
+      <h4>直す・消す</h4>
+      <ol class="steps">
+        <li><p><span class="num">1</span><span>セミナーの詳細ページで、右上の「編集」を押します。</span></p>
+          <img class="shot" src="manual/13-edit-button.jpg" width="780" height="1400" loading="lazy" alt="セミナーの詳細ページで、右上の「編集」を押します。"></li>
+        <li><p><span class="num">2</span><span>「セミナー編集」の画面で直し、「合言葉」を入れて「更新する」を押します。</span></p>
+          <img class="shot" src="manual/14-edit-update.png" width="780" height="1400" loading="lazy" alt="「セミナー編集」の画面で直し、「合言葉」を入れて「更新する」を押します。"></li>
+        <li><p><span class="num">3</span><span>消すときは、「合言葉」を入れてから一番下の赤い「このセミナーを削除する」を押し、「本当に削除しますか？」で「削除する」を押します。申込の記録とチラシのファイルは残ります。</span></p>
+          <img class="shot" src="manual/15-edit-delete.png" width="780" height="1400" loading="lazy" alt="消すときは、「合言葉」を入れてから一番下の赤い「このセミナーを削除する」を押し、「本当に削除しますか？」で「削除する」を押します。申込の記録とチラシのファイルは残ります。"></li>
+      </ol>
+
+      <button type="button" class="back-btn manual-back-bottom" id="m-back-bottom">‹ カレンダーに戻る</button>
+    </div>
+  </section>
 </div>
 
 <script src="config.js"></script>
-<script src="app.js?v=5"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>
