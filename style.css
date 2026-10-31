@@ -193,20 +193,21 @@ a.link-btn {
 .participants th.no, .participants td.no { width: 3em; text-align: center; }
 .participants .none { font-size: 14px; color: #6b7280; }
 
-/* 使い方（#manual）：3つのタブ、短い文を大きめに、手順の番号を縦線でつなぐ、スクリーンショットは最大 390px */
+/* 使い方（#manual）：3つの見出しのアコーディオン、短い文を大きめに、手順の番号を縦線でつなぐ、スクリーンショットは最大 390px */
 .manual { max-width: 640px; margin: 0 auto; font-size: 16px; line-height: 1.7; }
 .manual .page-title { font-size: 20px; margin-top: 8px; }
-/* タブ：スマホでは縦に、広い画面では横に並べる（文字は1行。入りきらなければ次の行へ）。選ばれているタブは紺地に白 */
-.manual-tabs { display: flex; flex-direction: column; gap: 6px; margin-bottom: 4px; }
-.manual-tabs button {
+/* アコーディオン：見出しボタンを縦に並べ、押した見出しの直下に中身を開く。開いている見出しは紺地に白、右端に開閉の印 */
+.manual-acc { display: flex; flex-direction: column; gap: 6px; }
+.acc-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
   min-height: 44px; text-align: left; font-size: 16px; font-family: inherit; font-weight: bold; line-height: 1.4;
   padding: 10px 12px; border: 1px solid #1e3a6e; border-radius: 8px; background: #fff; color: #1e3a6e; cursor: pointer;
+  scroll-margin-top: 8px;
 }
-.manual-tabs button.active { background: #1e3a6e; color: #fff; }
-@media (min-width: 700px) {
-  .manual-tabs { flex-direction: row; flex-wrap: wrap; }
-  .manual-tabs button { flex: 1 1 auto; text-align: center; white-space: nowrap; padding: 10px; }
-}
+.acc-head::after { content: '▼'; flex: none; font-size: 12px; }
+.acc-head[aria-expanded="true"] { background: #1e3a6e; color: #fff; }
+.acc-head[aria-expanded="true"]::after { content: '▲'; }
+.acc-body { padding-bottom: 20px; }
 .manual-lead { margin: 12px 0 0; }
 /* 手順：左に番号の丸、その下から次の番号まで縦線（最後の手順の下には引かない）。文と画像は右の列 */
 .manual .steps { list-style: none; margin: 0; padding: 0; }

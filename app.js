@@ -351,7 +351,7 @@
   function showManual() {
     state.manualFrom = state.view;
     state.view = 'manual';
-    showManualTab('apply');
+    openManualSection(null);
     showTab('manual');
   }
 
@@ -364,18 +364,22 @@
   $('m-back-top').addEventListener('click', manualBack);
   $('m-back-bottom').addEventListener('click', manualBack);
 
-  // タブ（申し込む／登録する／直す・削除する）：押したタブの中身だけ出す。ハッシュは #manual のまま
-  var manualTabs = document.querySelectorAll('[data-tab]');
-  function showManualTab(name) {
-    Array.prototype.forEach.call(manualTabs, function (b) {
-      var on = b.getAttribute('data-tab') === name;
-      b.classList.toggle('active', on);
-      b.setAttribute('aria-selected', String(on));
-      $('manual-' + b.getAttribute('data-tab')).hidden = !on;
+  // アコーディオン（申し込む／登録する／直す・削除する）：押した見出しの直下に中身を開く。開くのは1つだけ、もう一度押すと閉じる。
+  // name が null なら全部閉じる。ハッシュは #manual のまま
+  var manualHeads = document.querySelectorAll('[data-acc]');
+  function openManualSection(name) {
+    Array.prototype.forEach.call(manualHeads, function (b) {
+      var on = b.getAttribute('data-acc') === name;
+      b.setAttribute('aria-expanded', String(on));
+      $('manual-' + b.getAttribute('data-acc')).hidden = !on;
     });
   }
-  Array.prototype.forEach.call(manualTabs, function (b) {
-    b.addEventListener('click', function () { showManualTab(b.getAttribute('data-tab')); });
+  Array.prototype.forEach.call(manualHeads, function (b) {
+    b.addEventListener('click', function () {
+      var open = b.getAttribute('aria-expanded') === 'true';
+      openManualSection(open ? null : b.getAttribute('data-acc'));
+      if (!open) b.scrollIntoView(); // 開いた見出しを画面の上に
+    });
   });
 
   // ---- 月のカレンダーの書き出し（カレンダーの右下。サーバーでスプレッドシートと PDF を作り、開くボタンを出す） ----

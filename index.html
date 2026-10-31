@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>磐田市倫理法人会 セミナーカレンダー</title>
 <link rel="icon" href="logo.png">
-<link rel="stylesheet" href="style.css?v=7">
+<link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
 <div class="wrap">
@@ -102,18 +102,14 @@
     </form>
   </section>
 
-  <!-- 使い方（#manual）。3つのタブ（押したタブの中身だけ出す。URL は #manual のまま）。画像は srcmanual-capture の手順で撮る（架空データ） -->
+  <!-- 使い方（#manual）。3つの見出しのアコーディオン（押した見出しの直下に中身が開く。開くのは1つだけ。URL は #manual のまま）。画像は src\manual-capture\ の手順で撮る（架空データ） -->
   <section id="panel-manual" class="panel">
     <div class="manual">
       <button type="button" class="back-btn" id="m-back-top">‹ カレンダーに戻る</button>
       <h2 class="page-title">使い方</h2>
-      <div class="manual-tabs" role="tablist">
-        <button type="button" role="tab" data-tab="apply" class="active" aria-selected="true">1. セミナーに申し込む</button>
-        <button type="button" role="tab" data-tab="register" aria-selected="false">2. セミナーを登録する</button>
-        <button type="button" role="tab" data-tab="edit" aria-selected="false">3. セミナーを直す・削除する</button>
-      </div>
-
-      <div class="manual-tab" id="manual-apply" role="tabpanel">
+      <div class="manual-acc">
+      <button type="button" class="acc-head" data-acc="apply" aria-expanded="false" aria-controls="manual-apply">1. セミナーに申し込む</button>
+      <div class="acc-body" id="manual-apply" hidden>
       <ol class="steps">
         <li><p><span class="num">1</span><span>カレンダーで、申し込みたいセミナーを押します。</span></p>
           <img class="shot" src="manual/01-calendar-card.png" width="780" height="1400" loading="lazy" alt="カレンダーで、申し込みたいセミナーを押します。"></li>
@@ -133,7 +129,8 @@
       </div>
       </div>
 
-      <div class="manual-tab" id="manual-register" role="tabpanel" hidden>
+      <button type="button" class="acc-head" data-acc="register" aria-expanded="false" aria-controls="manual-register">2. セミナーを登録する</button>
+      <div class="acc-body" id="manual-register" hidden>
       <p class="manual-lead">登録を担当する方向けです。合言葉が必要です。登録を担当する方は、合言葉を受け取ってください。</p>
       <ol class="steps">
         <li><p><span class="num">1</span><span>右上の「☰」（メニュー）を押し、「セミナー登録」を選びます。</span></p>
@@ -153,7 +150,8 @@
       </ol>
       </div>
 
-      <div class="manual-tab" id="manual-edit" role="tabpanel" hidden>
+      <button type="button" class="acc-head" data-acc="edit" aria-expanded="false" aria-controls="manual-edit">3. セミナーを直す・削除する</button>
+      <div class="acc-body" id="manual-edit" hidden>
       <p class="manual-lead">登録を担当する方向けです。合言葉が必要です。登録を担当する方は、合言葉を受け取ってください。</p>
       <ol class="steps">
         <li><p><span class="num">1</span><span>セミナーの詳細ページで、右上の「編集」を押します。</span></p>
@@ -164,6 +162,7 @@
           <img class="shot" src="manual/14-edit-delete.png" width="780" height="1400" loading="lazy" alt="消すときは、「合言葉」を入れてから一番下の赤い「このセミナーを削除する」を押し、「本当に削除しますか？」で「削除する」を押します。申込の記録とチラシのファイルは残ります。"></li>
       </ol>
       </div>
+      </div>
 
       <button type="button" class="back-btn manual-back-bottom" id="m-back-bottom">‹ カレンダーに戻る</button>
     </div>
@@ -171,6 +170,6 @@
 </div>
 
 <script src="config.js"></script>
-<script src="app.js?v=7"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>
