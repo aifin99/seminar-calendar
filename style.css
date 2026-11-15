@@ -164,6 +164,32 @@ a.link-btn {
 .card.card-ended.venue { border-left-color: #f6cfa3; }
 .card.card-ended .when, .card.card-ended .when .sun, .card.card-ended .when .sat,
 .card.card-ended .lecturer, .card.card-ended .theme, .card.card-ended .meta, .card.card-ended .count { color: #4b5563; }
+/* 終了したセミナーの折りたたみ（v7）：控えめな見出し。▼＝閉、▲＝開（使い方の見出しと同じ印） */
+.ended-toggle {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 44px;
+  margin: 4px 0 10px; padding: 8px 14px; border: 1px solid #e1e4e8; border-radius: 10px;
+  background: #f3f4f6; color: #4b5563; font-size: 15px; font-weight: bold; font-family: inherit; text-align: left; cursor: pointer;
+}
+.ended-toggle::after { content: '▼'; flex: none; font-size: 12px; }
+.ended-toggle[aria-expanded="true"]::after { content: '▲'; }
+/* 詳細ページの見出しの「参加予定 N名」の行（v7）：右端に共有・リンクコピー（アイコンだけ） */
+.detail-head .count-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-right: -52px; margin-top: 2px; }
+.share-actions { position: relative; display: flex; gap: 8px; flex: none; }
+.icon-btn {
+  display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 0;
+  border: 1px solid #c7cfdd; border-radius: 8px; background: #fff; color: #1e3a6e; cursor: pointer;
+}
+.icon-btn:focus-visible { outline: 2px solid #2D8CFF; outline-offset: 2px; }
+.share-toast {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 2; white-space: nowrap;
+  padding: 4px 10px; border-radius: 6px; background: #1e3a6e; color: #fff; font-size: 13px; font-weight: bold;
+  visibility: hidden;
+}
+.share-toast.show { visibility: visible; }
+.share-fail { margin-top: 8px; margin-right: -52px; font-size: 13px; }
+.share-fail .msg { margin-top: 0; }
+.share-url { padding: 6px 8px; border: 1px solid #c7cfdd; border-radius: 6px; background: #fff; overflow-wrap: anywhere; user-select: all; -webkit-user-select: all; }
+.copy-buffer { position: fixed; left: -9999px; top: 0; width: 1px; height: 1px; opacity: 0; }
 /* 一覧のカードの右上の「終了」（v5。詳細ページの「終了」と同じ色） */
 .card .ended-badge {
   position: absolute; top: 8px; right: 8px;

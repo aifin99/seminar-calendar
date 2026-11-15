@@ -24,7 +24,8 @@
     detailNo: 0,
     passKnown: false,   // 合言葉が設定されているかをサーバーから聞いたか（v6：参加者の「削除」を出すため）
     passAsking: false,
-    applyNo: 0,         // 申込の返事（参加者一覧）を受け取った回数（裏の取り直しで古い一覧に戻さないため）
+    endedOpen: null,    // 一覧の「終了したセミナー」の開閉（v7。null＝既定。メモリだけ）
+    applyNo: 0,        // 申込の返事（参加者一覧）を受け取った回数（裏の取り直しで古い一覧に戻さないため）
     inAppHistory: false, // 直前の履歴がこの画面の中のもの（「‹ カレンダーに戻る」でブラウザの戻ると同じ動きにする）
     flash: '',          // 詳細ページの上に出すメッセージ（登録しました／更新しました）
     exportNo: 0,
@@ -200,6 +201,7 @@
    * 描いたあとに前後の月を先読みする
    */
   function loadMonth(ym) {
+    if (ym !== state.ym) state.endedOpen = null; // 月を切り替えたら終了したセミナーの開閉は既定に戻す（v7）
     state.ym = ym;
     state.loadedYm = ym;
     state.monthDirty = false;
@@ -344,7 +346,10 @@
       list.appendChild(el('div', 'status', 'この月のセミナーはありません'));
       return;
     }
-    sortForList(state.seminars, state.today).forEach(function (s) {
+    var sorted = sortForList(state.seminars, state.today);
+    var upcoming = sorted.filter(function (s) { return s.date >= state.today; });
+    var endedList = sorted.filter(function (s) { return s.date < state.today; });
+    var makeCard = function (s) {
       var ended = s.date < state.today;
       // 終了したカードは薄い灰色（v6。.ended は詳細ページの「終了」の枠と同じ名前なので card-ended にした）
       var card = el('button', 'card ' + kindOf(s) + (ended ? ' card-ended' : ''));
@@ -353,8 +358,28 @@
       fillHead(card, s);
       if (ended) card.appendChild(el('span', 'ended-badge', '終了'));
       card.addEventListener('click', function () { openSeminar(s.id); });
-      list.appendChild(card);
+      return card;
+    };
+    upcoming.forEach(function (s) { list.appendChild(makeCard(s)); });
+    if (!endedList.length) return;
+    // v7：終了したセミナーは折りたたむ。最初は閉じる（「これから」が0件の月は最初から開く）。開閉はメモリだけ
+    var open = state.endedOpen === null ? !upcoming.length : state.endedOpen;
+    var toggle = el('button', 'ended-toggle', '終了したセミナー（' + endedList.length + '件）');
+    toggle.type = 'button';
+    toggle.id = 'ended-toggle';
+    toggle.setAttribute('aria-expanded', String(open));
+    toggle.setAttribute('aria-controls', 'ended-list');
+    var box = el('div', 'ended-list');
+    box.id = 'ended-list';
+    box.hidden = !open;
+    endedList.forEach(function (s) { box.appendChild(makeCard(s)); });
+    toggle.addEventListener('click', function () {
+      state.endedOpen = box.hidden;
+      box.hidden = !state.endedOpen;
+      toggle.setAttribute('aria-expanded', String(state.endedOpen));
     });
+    list.appendChild(toggle);
+    list.appendChild(box);
   }
 
   /**
@@ -638,8 +663,102 @@
     edit.type = 'button';
     edit.addEventListener('click', function () { openEdit(s); });
     head.appendChild(edit);
+    // v7：「参加予定 N名」の行の右端に、共有とリンクコピー（アイコンだけ）
+    var count = head.querySelector('.count');
+    var row = el('div', 'count-row');
+    head.insertBefore(row, count);
+    row.appendChild(count);
+    row.appendChild(shareButtons(head, s));
     box.appendChild(head);
     return head;
+  }
+
+  // ---- 共有・リンクコピー（v7）。端末には何も保存しない。通信もしない（LINE の共有ページを開くときだけ） ----
+  var ICON_SHARE = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="M12 15V3M7.5 7.5L12 3l4.5 4.5M7 11H5.5v9.5h13V11H17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  var ICON_LINK = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3.2-3.2a4.5 4.5 0 0 0-6.4-6.4l-1.4 1.4M14 10a4.5 4.5 0 0 0-6.4 0l-3.2 3.2a4.5 4.5 0 0 0 6.4 6.4l1.4-1.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  /** セミナーごとの URL。ドメインは直書きしない（今開いているページの origin + pathname） */
+  function seminarUrl(s) {
+    return location.origin + location.pathname + '?openExternalBrowser=1#s=' + encodeURIComponent(s.id);
+  }
+
+  /** 共有の文（画面に出ている文字だけ。参加者の名前は入れない） */
+  function shareLines(s) {
+    var wd = WEEK[weekdayOf(s.date)];
+    var lines = ['【磐田市倫理法人会 セミナー】', dateLabel(s.date) + '（' + wd + '）' + s.time + ' ' + s.lecturer];
+    if (s.theme) lines.push('「' + s.theme + '」');
+    return lines;
+  }
+
+  function shareButtons(head, s) {
+    var wrap = el('div', 'share-actions');
+    var mk = function (cls, label, svg) {
+      var b = el('button', 'icon-btn ' + cls);
+      b.type = 'button';
+      b.setAttribute('aria-label', label);
+      b.title = label;
+      b.innerHTML = svg;
+      wrap.appendChild(b);
+      return b;
+    };
+    var share = mk('share-btn', '共有', ICON_SHARE);
+    var copy = mk('copy-btn', 'リンクをコピー', ICON_LINK);
+    // 「リンクをコピーしました」はボタンの下に重ねて出す（下の内容を動かさない）
+    var toast = el('div', 'share-toast');
+    toast.setAttribute('aria-live', 'polite');
+    wrap.appendChild(toast);
+    var toastTimer = null;
+    var showToast = function (text) {
+      toast.textContent = text;
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(function () { toast.classList.remove('show'); toast.textContent = ''; }, 2000);
+    };
+    // 失敗したとき：見出しの枠の下に理由と URL（長押しで選べる文字）
+    var fail = function (text) {
+      var old = head.querySelector('.share-fail');
+      if (old) old.remove();
+      var box = el('div', 'share-fail');
+      box.appendChild(el('div', 'msg error', text));
+      box.appendChild(el('div', 'share-url', seminarUrl(s)));
+      head.appendChild(box);
+    };
+    var openLine = function () {
+      var lines = shareLines(s).concat([seminarUrl(s)]);
+      var w = window.open('https://line.me/R/share?text=' + encodeURIComponent(lines.join('\n')), '_blank');
+      if (w) { try { w.opener = null; } catch (e) { /* 何もしない */ } } else fail('共有できませんでした');
+    };
+    share.addEventListener('click', function () {
+      if (navigator.share) {
+        navigator.share({ title: '磐田市倫理法人会 セミナー', text: shareLines(s).join('\n'), url: seminarUrl(s) })
+          .catch(function (err) {
+            if (err && err.name === 'AbortError') return; // 利用者がやめた
+            openLine();
+          });
+      } else {
+        openLine();
+      }
+    });
+    copy.addEventListener('click', function () {
+      var url = seminarUrl(s);
+      var fallback = function () {
+        var ta = el('textarea', 'copy-buffer');
+        ta.value = url;
+        ta.setAttribute('readonly', '');
+        document.body.appendChild(ta);
+        ta.select();
+        var ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        ta.remove();
+        if (ok) showToast('リンクをコピーしました'); else fail('コピーできませんでした');
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(function () { showToast('リンクをコピーしました'); }, fallback);
+      } else {
+        fallback();
+      }
+    });
+    return wrap;
   }
 
   $('d-back').addEventListener('click', function () {
