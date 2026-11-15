@@ -142,10 +142,15 @@ a.link-btn {
 .card .theme, .detail-head .theme { font-size: 16px; overflow-wrap: anywhere; }
 .card .meta, .detail-head .meta { font-size: 13px; color: #4b5563; overflow-wrap: anywhere; }
 .card .count, .detail-head .count { font-size: 13px; color: #1e3a6e; }
-.flyer { width: 100%; height: auto; display: block; margin-top: 12px; border: 1px solid #e5e7eb; }
+/* 詳細ページのチラシ（v6.1）：幅は本文の 70% まで・高さは画面の 55% まで、中央。縦横比は保つ（J23 の2つの数字） */
+.flyer { display: block; width: auto; height: auto; max-width: 70%; max-height: 55vh; margin: 12px auto 0; border: 1px solid #e5e7eb; }
 .no-flyer { margin-top: 12px; padding: 24px 8px; text-align: center; background: #f3f4f6; color: #6b7280; border-radius: 6px; }
 /* チラシの取得中（v5）：チラシ（A4 縦）とだいたい同じ高さの枠を先に取り、届いたときに下の申込フォームが大きく動かないように */
-.no-flyer.loading { aspect-ratio: 210 / 297; display: flex; align-items: center; justify-content: center; }
+.no-flyer.loading {
+  aspect-ratio: 210 / 297; display: flex; align-items: center; justify-content: center;
+  /* v6.1：A4 縦のチラシと同じ大きさ・位置（幅 70% まで、高さ 55vh まで＝幅は 55vh×210/297 まで、中央） */
+  width: min(70%, calc(55vh * 210 / 297)); margin: 12px auto 0; padding: 0 8px;
+}
 /* 終了したカード（v6）：薄い灰色の地、文字は灰色（地とのコントラスト比 4.5:1 以上）、左の帯も薄く */
 .card.card-ended { background: #f3f4f6; border-color: #e1e4e8; }
 .card.card-ended.zoom { border-left-color: #a8cdfa; }
