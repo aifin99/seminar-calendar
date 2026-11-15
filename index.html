@@ -8,7 +8,7 @@
 <!-- v5：API のサーバーへの接続を先に始めておく（fetch は資格情報なしの CORS なので crossorigin を付ける） -->
 <link rel="preconnect" href="https://script.google.com" crossorigin>
 <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
-<link rel="stylesheet" href="style.css?v=11">
+<link rel="stylesheet" href="style.css?v=12">
 <script src="config.js"></script>
 <script>
 // v5：最初の要求（今月の getMonth。#s=… なら getDetail と getFlyer）を app.js の読み込みを待たずに始める。
@@ -147,8 +147,8 @@
       <ol class="steps">
         <li><p><span class="num">1</span><span>カレンダーで、申し込みたいセミナーを押します。</span></p>
           <img class="shot" src="manual/01-calendar-card.png" width="780" height="1400" loading="lazy" alt="カレンダーで、申し込みたいセミナーを押します。"></li>
-        <li><p><span class="num">2</span><span>詳細ページが開きます。チラシを確認します。</span></p>
-          <img class="shot" src="manual/02-detail-flyer.jpg" width="780" height="1400" loading="lazy" alt="詳細ページが開きます。チラシを確認します。"></li>
+        <li><p><span class="num">2</span><span>詳細ページが開きます。チラシを確認します。チラシを押すと大きく表示されます。もう一度押すと戻ります。</span></p>
+          <img class="shot" src="manual/02-detail-flyer.jpg" width="780" height="1400" loading="lazy" alt="詳細ページが開きます。チラシを確認します。チラシを押すと大きく表示されます。もう一度押すと戻ります。"></li>
         <li><p><span class="num">3</span><span>「所属チーム」を選び、「参加者名」を入れて、「申し込む」を押します。会員以外の方は「ゲスト（会員以外の方）」を選び、「紹介者名」も入れてください。</span></p>
           <img class="shot" src="manual/03-apply-form.png" width="780" height="1400" loading="lazy" alt="「所属チーム」を選び、「参加者名」を入れて、「申し込む」を押します。会員以外の方は「ゲスト（会員以外の方）」を選び、「紹介者名」も入れてください。"></li>
         <li><p><span class="num">4</span><span>「申し込みました」と出て、「参加予定」の一覧に名前が出れば完了です。</span></p>
@@ -216,6 +216,6 @@
   </section>
 </div>
 
-<script src="app.js?v=11"></script>
+<script src="app.js?v=12"></script>
 </body>
 </html>

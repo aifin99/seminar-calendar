@@ -555,16 +555,48 @@
     if (!page.slot) return;
     var node;
     if (typeof page.flyer === 'string') {
-      node = el('img', 'flyer');
-      node.alt = 'チラシ';
-      node.src = page.flyer;
+      node = flyerBox(page.flyer);
     } else if (page.flyer === undefined) {
-      node = el('div', 'no-flyer loading', 'チラシを読み込み中…');
+      // 読み込み中の枠（チラシと同じ大きさ）＋案内と同じ高さの見えない行（チラシが入ってもフォームが動かないように）
+      node = el('div', 'flyer-box');
+      node.appendChild(el('div', 'no-flyer loading', 'チラシを読み込み中…'));
+      node.appendChild(el('div', 'flyer-hint blank', 'タップで拡大'));
     } else {
       node = el('div', 'no-flyer', page.flyer === false ? 'チラシを読み込めませんでした' : 'チラシ準備中');
     }
     page.slot.replaceWith(node);
     page.slot = node;
+  }
+
+  /**
+   * チラシ（v6.1）：小さく（幅 70%・高さ 55vh まで）出し、タップすると その場で本文の幅いっぱい、もう一度で元に戻す。
+   * Enter／スペースでも切り替え。状態はどこにも保存しない（開き直すと小さい状態）。通信もしない
+   */
+  function flyerBox(src) {
+    var box = el('div', 'flyer-box');
+    var img = el('img', 'flyer');
+    img.alt = 'チラシ';
+    img.src = src;
+    img.tabIndex = 0;
+    img.setAttribute('role', 'button');
+    img.setAttribute('aria-expanded', 'false');
+    var hint = el('div', 'flyer-hint', 'タップで拡大');
+    var toggle = function () {
+      var big = !img.classList.contains('big');
+      img.classList.toggle('big', big);
+      img.setAttribute('aria-expanded', String(big));
+      hint.textContent = big ? 'タップで戻す' : 'タップで拡大';
+      // チラシの上端が画面の上に隠れたら、上端が見える位置へ（見失わないように）
+      var top = img.getBoundingClientRect().top;
+      if (top < 0) window.scrollBy(0, top - 8);
+    };
+    img.addEventListener('click', toggle);
+    img.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter' || ev.key === ' ' || ev.key === 'Spacebar') { ev.preventDefault(); toggle(); }
+    });
+    box.appendChild(img);
+    box.appendChild(hint);
+    return box;
   }
 
   /** 覚えているチラシ（10分より古いものは捨てて null） */

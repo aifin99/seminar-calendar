@@ -143,7 +143,12 @@ a.link-btn {
 .card .meta, .detail-head .meta { font-size: 13px; color: #4b5563; overflow-wrap: anywhere; }
 .card .count, .detail-head .count { font-size: 13px; color: #1e3a6e; }
 /* 詳細ページのチラシ（v6.1）：幅は本文の 70% まで・高さは画面の 55% まで、中央。縦横比は保つ（J23 の2つの数字） */
-.flyer { display: block; width: auto; height: auto; max-width: 70%; max-height: 55vh; margin: 12px auto 0; border: 1px solid #e5e7eb; }
+.flyer { display: block; width: auto; height: auto; max-width: 70%; max-height: 55vh; margin: 12px auto 0; border: 1px solid #e5e7eb; cursor: zoom-in; }
+/* タップで拡大したとき：本文の幅いっぱい（v6 までの大きさ）。もう一度タップで戻す */
+.flyer.big { width: 100%; max-width: 100%; max-height: none; cursor: zoom-out; }
+.flyer:focus-visible { outline: 2px solid #2D8CFF; outline-offset: 2px; }
+.flyer-hint { margin-top: 4px; font-size: 12px; line-height: 18px; color: #6b7280; text-align: center; }
+.flyer-hint.blank { visibility: hidden; }
 .no-flyer { margin-top: 12px; padding: 24px 8px; text-align: center; background: #f3f4f6; color: #6b7280; border-radius: 6px; }
 /* チラシの取得中（v5）：チラシ（A4 縦）とだいたい同じ高さの枠を先に取り、届いたときに下の申込フォームが大きく動かないように */
 .no-flyer.loading {
