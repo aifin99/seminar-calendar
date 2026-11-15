@@ -143,7 +143,9 @@ a.link-btn {
 .card .meta, .detail-head .meta { font-size: 13px; color: #4b5563; overflow-wrap: anywhere; }
 .card .count, .detail-head .count { font-size: 13px; color: #1e3a6e; }
 /* 詳細ページのチラシ（v6.1）：幅は本文の 70% まで・高さは画面の 55% まで、中央。縦横比は保つ（J23 の2つの数字） */
-.flyer { display: block; width: auto; height: auto; max-width: 70%; max-height: 55vh; margin: 12px auto 0; border: 1px solid #e5e7eb; cursor: zoom-in; }
+/* v6.2：高さの上限は --flyer-max-h（詳細ページを描くときに app.js が「画面の高さ×55%」を px で入れる。
+   スクロールでアドレスバーが引っ込んでも変わらない。幅が変わったとき＝回転のときだけ計算し直す）。無いときは 55vh */
+.flyer { display: block; width: auto; height: auto; max-width: 70%; max-height: var(--flyer-max-h, 55vh); margin: 12px auto 0; border: 1px solid #e5e7eb; cursor: zoom-in; }
 /* タップで拡大したとき：本文の幅いっぱい（v6 までの大きさ）。もう一度タップで戻す */
 .flyer.big { width: 100%; max-width: 100%; max-height: none; cursor: zoom-out; }
 .flyer:focus-visible { outline: 2px solid #2D8CFF; outline-offset: 2px; }
@@ -154,7 +156,7 @@ a.link-btn {
 .no-flyer.loading {
   aspect-ratio: 210 / 297; display: flex; align-items: center; justify-content: center;
   /* v6.1：A4 縦のチラシと同じ大きさ・位置（幅 70% まで、高さ 55vh まで＝幅は 55vh×210/297 まで、中央） */
-  width: min(70%, calc(55vh * 210 / 297)); margin: 12px auto 0; padding: 0 8px;
+  width: min(70%, calc(var(--flyer-max-h, 55vh) * 210 / 297)); margin: 12px auto 0; padding: 0 8px;
 }
 /* 終了したカード（v6）：薄い灰色の地、文字は灰色（地とのコントラスト比 4.5:1 以上）、左の帯も薄く */
 .card.card-ended { background: #f3f4f6; border-color: #e1e4e8; }

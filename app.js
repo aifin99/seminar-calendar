@@ -403,6 +403,7 @@
     state.view = 'detail:' + id;
     var no = ++state.detailNo;
     showTab('detail');
+    setFlyerLimit();
     setMsg($('d-msg'), state.flash, state.flash ? 'ok' : '');
     state.flash = '';
     var box = $('detail');
@@ -567,6 +568,20 @@
     page.slot.replaceWith(node);
     page.slot = node;
   }
+
+  /**
+   * チラシの高さの上限（v6.2）：詳細ページを開いた時点の画面の高さの 55% を px で CSS 変数 --flyer-max-h に入れる。
+   * vh だとスクロールでアドレスバーが引っ込んだときにチラシが大きくなる（LINE の中のブラウザなど）ので、
+   * 高さだけの変化では計算し直さない。幅が変わったとき（回転）だけ計算し直す
+   */
+  var flyerLimitWidth = null;
+  function setFlyerLimit() {
+    flyerLimitWidth = window.innerWidth;
+    document.documentElement.style.setProperty('--flyer-max-h', Math.floor(window.innerHeight * 0.55) + 'px');
+  }
+  window.addEventListener('resize', function () {
+    if (flyerLimitWidth !== null && window.innerWidth !== flyerLimitWidth) setFlyerLimit();
+  });
 
   /**
    * チラシ（v6.1）：小さく（幅 70%・高さ 55vh まで）出し、タップすると その場で本文の幅いっぱい、もう一度で元に戻す。
