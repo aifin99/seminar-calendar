@@ -2,6 +2,8 @@
   // 表示中の月を描いたあと、前後の月を裏で読んでおく（1か月 約5KB）。false にすると先読みしない（v5、J17）。
   // ブラウザのデータセーバーが入っているときも先読みしない
   var PREFETCH_NEIGHBOR_MONTHS = true;
+  // 共有ボタンでチラシの画像も一緒に渡す（v7.1、J28）。false にすると文だけを共有する
+  var SHARE_WITH_FLYER = true;
 
   // 今日（日本時間）。月を読んだあとはサーバーの日付で上書きする
   var TODAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
@@ -682,12 +684,40 @@
     return location.origin + location.pathname + '?openExternalBrowser=1#s=' + encodeURIComponent(s.id);
   }
 
-  /** 共有の文（画面に出ている文字だけ。参加者の名前は入れない） */
-  function shareLines(s) {
-    var wd = WEEK[weekdayOf(s.date)];
-    var lines = ['【磐田市倫理法人会 セミナー】', dateLabel(s.date) + '（' + wd + '）' + s.time + ' ' + s.lecturer];
-    if (s.theme) lines.push('「' + s.theme + '」');
-    return lines;
+  /**
+   * 共有の文（v7.1）：見出し・箇条書き（値が空の項目の行は出さない）・空行・案内・URL（最後の行）。
+   * 画面に出ている文字だけ。所属・代表者・住所・参加者の名前は入れない
+   */
+  function shareText(s) {
+    var lines = ['【磐田市倫理法人会 セミナー】', '・日時：' + dateLabel(s.date) + '（' + WEEK[weekdayOf(s.date)] + '）' + s.time];
+    if (s.place) lines.push('・場所：' + s.place);
+    if (s.lecturer) lines.push('・講師：' + s.lecturer);
+    if (s.theme) lines.push('・テーマ：' + s.theme);
+    lines.push('');
+    lines.push(s.date < state.today ? '詳細は下記から' : 'お申し込みは下記から');
+    lines.push(seminarUrl(s));
+    return lines.join('\n');
+  }
+
+  /**
+   * 画面に出ているチラシ（メモリの data URL）から画像のファイルを同期で作る（v7.1。通信しない）。
+   * チラシが無い・読み込み中・別のセミナーのときは null
+   */
+  function flyerFileFor(s) {
+    if (state.view !== 'detail:' + s.id) return null;
+    var img = document.querySelector('#detail img.flyer');
+    var m = img && /^data:(image\/[a-z0-9.+-]+);base64,(.+)$/i.exec(img.getAttribute('src') || '');
+    if (!m) return null;
+    try {
+      var bin = atob(m[2]);
+      var bytes = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      var sub = m[1].split('/')[1].toLowerCase();
+      var ext = sub === 'jpeg' ? 'jpg' : sub.replace(/\+.*$/, '');
+      return new File([bytes], 'チラシ_' + s.date.replace(/-/g, '') + '.' + ext, { type: m[1] });
+    } catch (e) {
+      return null;
+    }
   }
 
   function shareButtons(head, s) {
@@ -724,20 +754,23 @@
       head.appendChild(box);
     };
     var openLine = function () {
-      var lines = shareLines(s).concat([seminarUrl(s)]);
-      var w = window.open('https://line.me/R/share?text=' + encodeURIComponent(lines.join('\n')), '_blank');
+      var w = window.open('https://line.me/R/share?text=' + encodeURIComponent(shareText(s)), '_blank');
       if (w) { try { w.opener = null; } catch (e) { /* 何もしない */ } } else fail('共有できませんでした');
     };
     share.addEventListener('click', function () {
-      if (navigator.share) {
-        navigator.share({ title: '磐田市倫理法人会 セミナー', text: shareLines(s).join('\n'), url: seminarUrl(s) })
-          .catch(function (err) {
-            if (err && err.name === 'AbortError') return; // 利用者がやめた
-            openLine();
-          });
-      } else {
-        openLine();
+      if (!navigator.share) { openLine(); return; }
+      // URL は text の最後の行に入れ、url は渡さない（並びを固定する。v7.1）
+      var data = { title: '磐田市倫理法人会 セミナー', text: shareText(s) };
+      if (SHARE_WITH_FLYER && navigator.canShare) {
+        var file = flyerFileFor(s); // 押した操作の中で share を呼ぶため、待たずに同期で作る
+        var ok = false;
+        try { ok = !!file && navigator.canShare({ files: [file] }); } catch (e) { ok = false; }
+        if (ok) data.files = [file];
       }
+      navigator.share(data).catch(function (err) {
+        if (err && err.name === 'AbortError') return; // 利用者がやめた
+        if (data.files) fail('共有できませんでした'); else openLine();
+      });
     });
     copy.addEventListener('click', function () {
       var url = seminarUrl(s);
