@@ -146,6 +146,12 @@ a.link-btn {
 .no-flyer { margin-top: 12px; padding: 24px 8px; text-align: center; background: #f3f4f6; color: #6b7280; border-radius: 6px; }
 /* チラシの取得中（v5）：チラシ（A4 縦）とだいたい同じ高さの枠を先に取り、届いたときに下の申込フォームが大きく動かないように */
 .no-flyer.loading { aspect-ratio: 210 / 297; display: flex; align-items: center; justify-content: center; }
+/* 終了したカード（v6）：薄い灰色の地、文字は灰色（地とのコントラスト比 4.5:1 以上）、左の帯も薄く */
+.card.card-ended { background: #f3f4f6; border-color: #e1e4e8; }
+.card.card-ended.zoom { border-left-color: #a8cdfa; }
+.card.card-ended.venue { border-left-color: #f6cfa3; }
+.card.card-ended .when, .card.card-ended .when .sun, .card.card-ended .when .sat,
+.card.card-ended .lecturer, .card.card-ended .theme, .card.card-ended .meta, .card.card-ended .count { color: #4b5563; }
 /* 一覧のカードの右上の「終了」（v5。詳細ページの「終了」と同じ色） */
 .card .ended-badge {
   position: absolute; top: 8px; right: 8px;
@@ -199,6 +205,16 @@ a.link-btn {
 .participants th { background: #eef2f8; font-size: 13px; }
 .participants th.no, .participants td.no { width: 3em; text-align: center; }
 .participants .none { font-size: 14px; color: #6b7280; }
+/* 参加者の削除（v6）：右端の控えめな「削除」と、その行の下の確認の枠 */
+.participants th.del, .participants td.del { width: 4.6em; text-align: center; padding: 2px 4px; }
+.p-del-btn {
+  min-height: 32px; padding: 4px 8px; white-space: nowrap; font-size: 13px; font-family: inherit;
+  border: 1px solid #c7cdd6; border-radius: 6px; background: #fff; color: #b03a2e; cursor: pointer;
+}
+.participants .p-del-row > td { padding: 0; border-color: #e0b4ae; }
+.participants .p-del-confirm { margin: 0; border: 0; border-radius: 0; }
+.participants .p-del-confirm .field { margin: 8px 0 0; }
+.participants > .msg { margin: 0 0 6px; }
 
 /* 使い方（#manual）：3つの見出しのアコーディオン、短い文を大きめに、手順の番号を縦線でつなぐ、スクリーンショットは最大 390px */
 .manual { max-width: 640px; margin: 0 auto; font-size: 16px; line-height: 1.7; }

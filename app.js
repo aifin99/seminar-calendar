@@ -22,6 +22,8 @@
     view: null,         // 'calendar' / 'detail:<ID>' / 'register' / 'manual'
     manualFrom: null,   // 使い方ページ（#manual）の直前の画面（直接開いたときは null）
     detailNo: 0,
+    passKnown: false,   // 合言葉が設定されているかをサーバーから聞いたか（v6：参加者の「削除」を出すため）
+    passAsking: false,
     applyNo: 0,         // 申込の返事（参加者一覧）を受け取った回数（裏の取り直しで古い一覧に戻さないため）
     inAppHistory: false, // 直前の履歴がこの画面の中のもの（「‹ カレンダーに戻る」でブラウザの戻ると同じ動きにする）
     flash: '',          // 詳細ページの上に出すメッセージ（登録しました／更新しました）
@@ -236,6 +238,7 @@
   function showMonth(res) {
     state.seminars = res.seminars;
     state.today = res.today;
+    state.passKnown = true;
     setNeedsPassphrase(res.needsPassphrase);
     renderGrid();
     renderList();
@@ -342,11 +345,13 @@
       return;
     }
     sortForList(state.seminars, state.today).forEach(function (s) {
-      var card = el('button', 'card ' + kindOf(s));
+      var ended = s.date < state.today;
+      // 終了したカードは薄い灰色（v6。.ended は詳細ページの「終了」の枠と同じ名前なので card-ended にした）
+      var card = el('button', 'card ' + kindOf(s) + (ended ? ' card-ended' : ''));
       card.type = 'button';
       card.id = 'card-' + s.id;
       fillHead(card, s);
-      if (s.date < state.today) card.appendChild(el('span', 'ended-badge', '終了'));
+      if (ended) card.appendChild(el('span', 'ended-badge', '終了'));
       card.addEventListener('click', function () { openSeminar(s.id); });
       list.appendChild(card);
     });
@@ -500,10 +505,30 @@
     } else {
       box.appendChild(applyForm(s, participants, res.teams || []));
     }
-    renderParticipants(participants, res);
+    renderParticipants(participants, res, s);
     box.appendChild(participants);
     page.participants = participants;
     setCount(s.id, s.count);
+    if (!state.passKnown) askPassphraseSetting(page);
+  }
+
+  /**
+   * #s=… を直接開いたときなど、合言葉が設定されているか（参加者の「削除」を出すか）をまだ知らないとき：
+   * getFormOptions で確かめ、設定されていれば参加者の表を描き直す（v6。1回だけ）
+   */
+  function askPassphraseSetting(page) {
+    if (state.passAsking) return;
+    state.passAsking = true;
+    call('getFormOptions', [], function (opt) {
+      state.passAsking = false;
+      if (!opt || !opt.ok) return;
+      state.passKnown = true;
+      setNeedsPassphrase(opt.needsPassphrase);
+      var d = memo.details[page.id];
+      if (state.needsPassphrase && d && state.view === 'detail:' + page.id && page.participants && page.participants.isConnected && !page.participants.deleting) {
+        renderParticipants(page.participants, d.res, page.s);
+      }
+    }, function () { state.passAsking = false; });
   }
 
   /** 覚えている内容で描いたあと、取り直した結果で見出しと参加者だけ差し替える（申込フォームの入力は消さない） */
@@ -520,7 +545,7 @@
       page.where = where;
     }
     if (JSON.stringify(old.groups) !== JSON.stringify(res.groups) || JSON.stringify(old.participants) !== JSON.stringify(res.participants)) {
-      renderParticipants(page.participants, res);
+      if (!page.participants.deleting) renderParticipants(page.participants, res, page.s); // 削除の確認を開いている間は描き直さない
     }
     setCount(s.id, s.count);
   }
@@ -688,6 +713,7 @@
     call('getFormOptions', [], function (opt) {
       setTeams(opt.teams);
       state.needsPassphrase = !!opt.needsPassphrase;
+      state.passKnown = true;
       state.view = 'register';
       startForm(s);
       showTab('register');
@@ -740,7 +766,7 @@
       call('addParticipant', [s.id, name, team, intro], function (res) {
         btn.disabled = false;
         if (res && res.groups) {
-          renderParticipants(participants, res);
+          renderParticipants(participants, res, s);
           // 覚えている詳細の参加者もそろえる（開き直したときに古い一覧を出さない）
           state.applyNo++;
           var d = memo.details[s.id];
@@ -777,12 +803,19 @@
     return input;
   }
 
-  /** 参加者を所属チームごとに（サーバーが No. 順に並べた groups のまま）。各チームの中は申込順 */
-  function renderParticipants(box, res) {
+  /**
+   * 参加者を所属チームごとに（サーバーが No. 順に並べた groups のまま）。各チームの中は申込順。
+   * v6：合言葉が設定されていれば、申込の id がある行の右端に「削除」（リーダーが合言葉で消す）。
+   * note があれば表の上に出す（{ text, kind }）
+   */
+  function renderParticipants(box, res, s, note) {
     var groups = res.groups || [];
     var total = (res.participants || []).length;
+    var canDelete = !!state.needsPassphrase && !!s;
     box.innerHTML = '';
+    box.deleting = null;
     box.appendChild(el('h3', '', '参加予定 ' + total + '名'));
+    if (note) box.appendChild(el('div', 'msg ' + note.kind, note.text));
     if (!total) { box.appendChild(el('div', 'none', 'まだ申込はありません')); return; }
     groups.forEach(function (g) {
       box.appendChild(el('h4', '', g.team + '（' + g.participants.length + '名）'));
@@ -791,16 +824,113 @@
       head.appendChild(el('th', 'no', 'No.'));
       head.appendChild(el('th', '', '参加者名'));
       head.appendChild(el('th', '', '紹介者名'));
+      if (canDelete) head.appendChild(el('th', 'del', ''));
       table.appendChild(head);
       g.participants.forEach(function (p, i) {
         var tr = el('tr');
         tr.appendChild(el('td', 'no', String(i + 1)));
         tr.appendChild(el('td', '', p.name));
         tr.appendChild(el('td', '', p.introducer));
+        if (canDelete) {
+          var td = el('td', 'del');
+          if (p.id) {
+            var b = el('button', 'p-del-btn', '削除');
+            b.type = 'button';
+            b.addEventListener('click', function () { openParticipantDelete(box, s, p, tr); });
+            td.appendChild(b);
+          }
+          tr.appendChild(td);
+        }
         table.appendChild(tr);
       });
       box.appendChild(table);
     });
+  }
+
+  /**
+   * 参加者の削除の確認（v6）：その行のすぐ下に、名前・合言葉の欄・「削除する」「やめる」。開くのは1つだけ。
+   * 合言葉はこの入力欄にだけあり、閉じる・描き直すと欄ごと消える（覚えない・URL に入れない）
+   */
+  function openParticipantDelete(box, s, p, tr) {
+    var cols = tr.children.length;
+    if (box.deleting) {
+      var same = box.deleting.applyId === p.id;
+      box.deleting.row.remove();
+      box.deleting = null;
+      if (same) return; // もう一度押したら閉じる
+    }
+    var row = el('tr', 'p-del-row');
+    var cell = el('td');
+    cell.colSpan = cols;
+    var wrap = el('div', 'delete-confirm p-del-confirm');
+    wrap.appendChild(el('div', '', '「' + p.name + '」さんの申込を削除します'));
+    var f = el('div', 'field');
+    var passId = 'p-del-pass-' + p.id;
+    var label = el('label', '', '合言葉');
+    label.htmlFor = passId;
+    label.appendChild(el('span', 'req', '必須'));
+    var input = el('input');
+    input.type = 'text';
+    input.id = passId;
+    input.autocomplete = 'off';
+    f.appendChild(label);
+    f.appendChild(input);
+    wrap.appendChild(f);
+    var yes = el('button', 'btn danger', '削除する');
+    yes.type = 'button';
+    var no = el('button', 'btn sub', 'やめる');
+    no.type = 'button';
+    var msg = el('div', 'msg');
+    wrap.appendChild(yes);
+    wrap.appendChild(no);
+    wrap.appendChild(msg);
+    cell.appendChild(wrap);
+    row.appendChild(cell);
+    tr.after(row);
+    box.deleting = { applyId: p.id, row: row };
+    input.focus();
+
+    no.addEventListener('click', function () {
+      row.remove();
+      if (box.deleting && box.deleting.row === row) box.deleting = null;
+    });
+    yes.addEventListener('click', function () {
+      var pass = input.value.trim();
+      if (!pass) { setMsg(msg, '合言葉を入れてください', 'error'); return; }
+      yes.disabled = true;
+      no.disabled = true;
+      setMsg(msg, '削除しています…');
+      call('deleteParticipant', [s.id, p.id, pass], function (res) {
+        if (!row.isConnected) return; // 描き直されて確認の枠が無くなった
+        yes.disabled = false;
+        no.disabled = false;
+        if (res && res.ok) {
+          applyParticipants(box, s, res, { text: '削除しました', kind: 'ok' });
+          return;
+        }
+        var reason = (res && res.reason) || '削除できませんでした';
+        if (res && res.groups && /見つかりません/.test(reason)) {
+          applyParticipants(box, s, res, { text: reason, kind: 'error' });
+          return;
+        }
+        setMsg(msg, reason, 'error');
+      }, function (err) {
+        if (!row.isConnected) return;
+        yes.disabled = false;
+        no.disabled = false;
+        setMsg(msg, '削除できませんでした：' + err, 'error');
+      });
+    });
+  }
+
+  /** 申込・削除の返事の参加者一覧を、表・人数（見出し・カード）・覚えている詳細と月にそろえる */
+  function applyParticipants(box, s, res, note) {
+    renderParticipants(box, res, s, note);
+    state.applyNo++; // 裏の取り直しで古い一覧に戻さない
+    var d = memo.details[s.id];
+    if (d) { d.res.participants = res.participants; d.res.groups = res.groups; }
+    s.count = (res.participants || []).length;
+    setCount(s.id, s.count);
   }
 
   // ---- セミナー登録・編集フォーム ----

@@ -8,7 +8,7 @@
 <!-- v5：API のサーバーへの接続を先に始めておく（fetch は資格情報なしの CORS なので crossorigin を付ける） -->
 <link rel="preconnect" href="https://script.google.com" crossorigin>
 <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
-<link rel="stylesheet" href="style.css?v=9">
+<link rel="stylesheet" href="style.css?v=10">
 <script src="config.js"></script>
 <script>
 // v5：最初の要求（今月の getMonth。#s=… なら getDetail と getFlyer）を app.js の読み込みを待たずに始める。
@@ -158,7 +158,7 @@
         <ul>
           <li>同じ名前では2回申し込めません。</li>
           <li>開催日が過ぎたセミナーは「終了」と出て、申し込めません。</li>
-          <li>申込を取り消すときは、登録を担当する方に伝えてください。</li>
+          <li>申込を取り消すときは、チームのリーダーに伝えてください。</li>
         </ul>
       </div>
       </div>
@@ -196,6 +196,19 @@
           <img class="shot" src="manual/14-edit-delete.png" width="780" height="1400" loading="lazy" alt="消すときは、「合言葉」を入れてから一番下の赤い「このセミナーを削除する」を押し、「本当に削除しますか？」で「削除する」を押します。申込の記録とチラシのファイルは残ります。"></li>
       </ol>
       </div>
+
+      <button type="button" class="acc-head" data-acc="participant" aria-expanded="false" aria-controls="manual-participant">4. 参加者の申込を削除する</button>
+      <div class="acc-body" id="manual-participant" hidden>
+      <p class="manual-lead">リーダーの方向けです。合言葉が必要です。</p>
+      <ol class="steps">
+        <li><p><span class="num">1</span><span>セミナーの詳細ページの「参加予定」で、消したい人の右の「削除」を押します。</span></p>
+          <img class="shot" src="manual/15-participant-delete.png" width="780" height="1400" loading="lazy" alt="セミナーの詳細ページの「参加予定」で、消したい人の右の「削除」を押します。"></li>
+        <li><p><span class="num">2</span><span>「合言葉」を入れて「削除する」を押します。</span></p>
+          <img class="shot" src="manual/16-participant-pass.png" width="780" height="1400" loading="lazy" alt="「合言葉」を入れて「削除する」を押します。"></li>
+        <li><p><span class="num">3</span><span>「削除しました」と出て、一覧から名前が消えれば完了です。</span></p>
+          <img class="shot" src="manual/17-participant-done.png" width="780" height="1400" loading="lazy" alt="「削除しました」と出て、一覧から名前が消えれば完了です。"></li>
+      </ol>
+      </div>
       </div>
 
       <button type="button" class="back-btn manual-back-bottom" id="m-back-bottom">‹ カレンダーに戻る</button>
@@ -203,6 +216,6 @@
   </section>
 </div>
 
-<script src="app.js?v=9"></script>
+<script src="app.js?v=10"></script>
 </body>
 </html>
