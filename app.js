@@ -1,4 +1,8 @@
 (function () {
+  // 表示中の月を描いたあと、前後の月を裏で読んでおく（1か月 約5KB）。false にすると先読みしない（v5、J17）。
+  // ブラウザのデータセーバーが入っているときも先読みしない
+  var PREFETCH_NEIGHBOR_MONTHS = true;
+
   // 今日（日本時間）。月を読んだあとはサーバーの日付で上書きする
   var TODAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   var API_URL = String((window.SEMINAR_CONFIG && window.SEMINAR_CONFIG.apiUrl) || '');
@@ -18,6 +22,7 @@
     view: null,         // 'calendar' / 'detail:<ID>' / 'register' / 'manual'
     manualFrom: null,   // 使い方ページ（#manual）の直前の画面（直接開いたときは null）
     detailNo: 0,
+    applyNo: 0,         // 申込の返事（参加者一覧）を受け取った回数（裏の取り直しで古い一覧に戻さないため）
     inAppHistory: false, // 直前の履歴がこの画面の中のもの（「‹ カレンダーに戻る」でブラウザの戻ると同じ動きにする）
     flash: '',          // 詳細ページの上に出すメッセージ（登録しました／更新しました）
     exportNo: 0,
@@ -25,6 +30,20 @@
     teams: [],   // [{ name, representative }]（所属チームシート）
     edit: null   // 編集中：{ seminar }。新規登録のときは null
   };
+
+  // ---- ページを開いている間だけ覚えておく（v5）。JS の変数だけで、端末の保存領域（localStorage など）は使わない ----
+  // 再読み込み・ページを閉じると消える
+  var MONTH_TTL = 60 * 1000;      // これより古い月は、描いたあと裏で取り直す
+  var FLYER_TTL = 10 * 60 * 1000; // これより古いチラシは取り直す
+  var FLYER_MAX = 10;             // チラシは直近10枚まで（古いものから捨てる）
+  var memo = {
+    months: {},   // 'yyyy-MM' → { res, at }（getMonth の結果）
+    loading: {},  // 'yyyy-MM' → 取得中の月の待ち手 [[onOk, onErr], …]（同じ月を2回取りに行かない）
+    gen: 0,       // 月を全部捨てたら増やす（捨てる前に始めた取得の結果は覚えない）
+    details: {},  // セミナーID → { res, at }（getDetail の結果。チラシは含めない）
+    flyers: {}    // セミナーID → { flyer, at }（data URL か null）
+  };
+  var flyerOrder = []; // チラシを覚えた順（古い順）
 
   // ---- 小さな道具 ----
   function $(id) { return document.getElementById(id); }
@@ -39,7 +58,7 @@
    * Content-Type を text/plain にして preflight を出さない（GAS は OPTIONS に応えられない）
    */
   function call(fn, args, onOk, onErr) {
-    fetch(API_URL, {
+    handle(fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ api: fn, args: args }),
@@ -47,9 +66,27 @@
     }).then(function (res) {
       if (!res.ok) throw new Error('通信に失敗しました（' + res.status + '）');
       return res.json();
-    }).then(onOk, function (err) {
+    }), onOk, onErr);
+  }
+  function handle(promise, onOk, onErr) {
+    promise.then(onOk, function (err) {
       onErr((err && err.message) || String(err));
     });
+  }
+  /**
+   * index.html の <head> で app.js より先に始めた最初の要求（v5-3.5）。名前と引数が合えば1回だけ使う。
+   * 合わなければ null（普通に call する）
+   */
+  function takeEarly(fn, key) {
+    var e = window.SEMINAR_EARLY;
+    if (!e || !e[fn] || e.key !== key) return null;
+    var p = e[fn];
+    e[fn] = null;
+    return p;
+  }
+  function callOrEarly(fn, args, key, onOk, onErr) {
+    var early = takeEarly(fn, key);
+    if (early) handle(early, onOk, onErr); else call(fn, args, onOk, onErr);
   }
   function addMonth(ym, n) {
     var y = Number(ym.slice(0, 4)), m = Number(ym.slice(5, 7)) - 1 + n;
@@ -156,30 +193,96 @@
     goDetail(id);
   }
 
+  /**
+   * 月を表示する。覚えている月ならすぐ描き、60秒より古ければ裏で取り直して、変わっていたら描き直す（v5）。
+   * 描いたあとに前後の月を先読みする
+   */
   function loadMonth(ym) {
     state.ym = ym;
     state.loadedYm = ym;
     state.monthDirty = false;
-    state.seminars = [];
     resetExport();
     var no = ++state.requestNo;
     $('month-label').textContent = Number(ym.slice(0, 4)) + '年' + Number(ym.slice(5, 7)) + '月';
+    var hit = memo.months[ym];
+    if (hit) {
+      showMonth(hit.res);
+      if (Date.now() - hit.at > MONTH_TTL) {
+        var before = JSON.stringify(hit.res);
+        fetchMonth(ym, function (res) {
+          if (no !== state.requestNo || !res || !res.ok) return;
+          if (JSON.stringify(res) !== before) showMonth(res);
+        }, function () {});
+      }
+      prefetchNeighbors(ym);
+      return;
+    }
+    state.seminars = [];
     renderGrid();
     $('list-title').textContent = '';
     $('list').innerHTML = '';
     $('list').appendChild(el('div', 'status', '読み込み中…'));
-    call('getMonth', [ym], function (res) {
+    fetchMonth(ym, function (res) {
       if (no !== state.requestNo) return;
       if (!res || !res.ok) { showListError((res && res.reason) || '読み込めませんでした'); return; }
-      state.seminars = res.seminars;
-      state.today = res.today;
-      setNeedsPassphrase(res.needsPassphrase);
-      renderGrid();
-      renderList();
+      showMonth(res);
+      prefetchNeighbors(ym);
     }, function (err) {
       if (no !== state.requestNo) return;
       showListError('読み込めませんでした：' + err);
     });
+  }
+
+  function showMonth(res) {
+    state.seminars = res.seminars;
+    state.today = res.today;
+    setNeedsPassphrase(res.needsPassphrase);
+    renderGrid();
+    renderList();
+  }
+
+  /** getMonth を呼び、成功したら覚える。同じ月を取得中なら、その結果を待つ（2回呼ばない） */
+  function fetchMonth(ym, onOk, onErr) {
+    var waiting = memo.loading[ym];
+    if (waiting) { waiting.push([onOk, onErr]); return; }
+    waiting = memo.loading[ym] = [[onOk, onErr]];
+    var gen = memo.gen;
+    var done = function () { if (memo.loading[ym] === waiting) delete memo.loading[ym]; };
+    callOrEarly('getMonth', [ym], ym, function (res) {
+      done();
+      if (res && res.ok && gen === memo.gen) memo.months[ym] = { res: res, at: Date.now() };
+      waiting.forEach(function (w) { w[0](res); });
+    }, function (err) {
+      done();
+      waiting.forEach(function (w) { w[1](err); });
+    });
+  }
+
+  /** 登録・更新・削除のあと：覚えている月を全部捨てる（取得中のものも結果を覚えない） */
+  function forgetMonths() {
+    memo.gen++;
+    memo.months = {};
+    memo.loading = {};
+  }
+
+  /** 更新・削除のあと：覚えている月を全部と、そのセミナーの詳細・チラシを捨てる */
+  function forgetSeminar(id) {
+    forgetMonths();
+    delete memo.details[id];
+    forgetFlyer(id);
+  }
+
+  /** 前後の月を裏で読んでおく（覚えていない月だけ。次の月 → 前の月の順に1つずつ）。チラシと詳細は先読みしない */
+  function prefetchNeighbors(ym) {
+    if (!PREFETCH_NEIGHBOR_MONTHS) return;
+    if (navigator.connection && navigator.connection.saveData === true) return;
+    var queue = [addMonth(ym, 1), addMonth(ym, -1)];
+    (function next() {
+      var m = queue.shift();
+      if (!m) return;
+      if (memo.months[m] || memo.loading[m]) { next(); return; }
+      fetchMonth(m, next, next);
+    })();
   }
 
   function showListError(text) {
@@ -238,14 +341,27 @@
       list.appendChild(el('div', 'status', 'この月のセミナーはありません'));
       return;
     }
-    state.seminars.forEach(function (s) {
+    sortForList(state.seminars, state.today).forEach(function (s) {
       var card = el('button', 'card ' + kindOf(s));
       card.type = 'button';
       card.id = 'card-' + s.id;
       fillHead(card, s);
+      if (s.date < state.today) card.appendChild(el('span', 'ended-badge', '終了'));
       card.addEventListener('click', function () { openSeminar(s.id); });
       list.appendChild(card);
     });
+  }
+
+  /**
+   * 一覧の並び（v5）：今日以降のもの（日付・開始時刻の早い順）→ 終了したもの（同じく早い順）。
+   * 今日のセミナーは上の組（詳細ページの「終了」と同じ date < today の判定）。グリッドの並びは変えない
+   */
+  function sortForList(seminars, today) {
+    var key = function (s) { return s.date + ' ' + s.time; };
+    var byTime = function (a, b) { return key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0; };
+    var upcoming = seminars.filter(function (s) { return s.date >= today; }).sort(byTime);
+    var ended = seminars.filter(function (s) { return s.date < today; }).sort(byTime);
+    return upcoming.concat(ended);
   }
 
   /** カードと詳細ページの見出し：日付（曜日）・開始時刻／講師名／テーマ／場所・所属／参加予定人数 */
@@ -267,11 +383,17 @@
   /** 申込のあと、詳細ページとカレンダーの一覧の人数をそろえる */
   function setCount(id, n) {
     state.seminars.forEach(function (x) { if (x.id === id) x.count = n; });
+    // 覚えている月の人数もそろえる（月に戻ったときに古い人数を出さない）
+    Object.keys(memo.months).forEach(function (ym) {
+      memo.months[ym].res.seminars.forEach(function (x) { if (x.id === id) x.count = n; });
+    });
     [$('detail').querySelector('.detail-head .count'), $('card-' + id) && $('card-' + id).querySelector('.count')]
       .forEach(function (node) { if (node) node.textContent = '参加予定 ' + n + '名'; });
   }
 
-  // ---- 詳細ページ（#s=<ID>）。見出しは手元の情報で先に出し、チラシと参加者は開いたときに取りに行く ----
+  // ---- 詳細ページ（#s=<ID>）。見出しは手元の情報で先に出し、参加者とチラシは開いたときに取りに行く ----
+  // v5：参加者（getDetail、チラシ抜き）とチラシ（getFlyer）を同時に取り、チラシを待たずに申込フォームと参加者を出す。
+  // 一度開いたセミナーは覚えていてすぐ描き、参加者だけ裏で取り直す（チラシは10分まで取り直さない）
   function showDetail(id) {
     state.view = 'detail:' + id;
     var no = ++state.detailNo;
@@ -280,33 +402,161 @@
     state.flash = '';
     var box = $('detail');
     box.innerHTML = '';
-    var known = state.seminars.filter(function (x) { return x.id === id; })[0];
-    if (known) {
-      renderDetailHead(box, known);
-      if (known.address) box.appendChild(whereBox(known.address));
+    // flyer：undefined＝取得中、null＝チラシなし（読めない）、false＝取得に失敗、文字列＝data URL
+    var page = { id: id, box: box, flyer: undefined, s: null, head: null, where: null, slot: null, participants: null };
+    var kept = keptFlyer(id);
+    if (kept) page.flyer = kept.flyer;
+    var cached = memo.details[id];
+    var known = cached ? cached.res.seminar : findKnown(id);
+    if (cached) {
+      renderDetailPage(page, cached.res);
+    } else {
+      if (known) {
+        renderDetailHead(box, known);
+        if (known.address) box.appendChild(whereBox(known.address));
+      }
+      box.appendChild(el('div', 'no-flyer', '読み込み中…'));
     }
-    box.appendChild(el('div', 'no-flyer', '読み込み中…'));
-    call('getDetail', [id], function (res) {
+
+    var flyerAsked = false;
+    var askFlyer = function () {
+      if (flyerAsked || page.flyer !== undefined) return;
+      flyerAsked = true;
+      callOrEarly('getFlyer', [id], id, function (res) {
+        if (!res || !res.ok) { if (no === state.detailNo) { page.flyer = false; fillFlyer(page); } return; }
+        keepFlyer(id, res.flyer);
+        if (no !== state.detailNo) return;
+        page.flyer = res.flyer;
+        fillFlyer(page);
+      }, function () {
+        if (no !== state.detailNo) return;
+        page.flyer = false;
+        fillFlyer(page);
+      });
+    };
+    // チラシの有無が手元で分かれば、参加者と同時に取りに行く（#s=… を直接開いたときは getDetail の返事を見てから）
+    if (known && known.hasFlyer) askFlyer();
+
+    var applyNo = state.applyNo;
+    callOrEarly('getDetail', [id, { flyer: false }], id, function (res) {
       if (no !== state.detailNo) return;
-      box.innerHTML = '';
+      if (state.applyNo !== applyNo) return; // 取り直しの途中で申し込んだ：申込の返事の方が新しい
       if (!res || !res.ok) {
+        box.innerHTML = '';
         var notFound = res && /見つかりません/.test(res.reason || '');
         box.appendChild(el('div', notFound ? 'status' : 'msg error', notFound ? 'このセミナーは見つかりません' : (res && res.reason) || '読み込めませんでした'));
         return;
       }
-      var s = {};
-      for (var k in res.seminar) s[k] = res.seminar[k];
-      s.count = (res.participants || []).length;
-      // #s=… を直接開いたとき：戻るとこのセミナーの月のカレンダー
-      if (state.loadedYm === null) state.ym = s.date.slice(0, 7);
-      renderDetailHead(box, s);
-      renderDetail(box, s, res);
-      setCount(s.id, s.count);
+      if (res.flyer) { keepFlyer(id, res.flyer); page.flyer = res.flyer; } // チラシ付きで返ってきたとき（v5 より前のサーバー）
+      var stored = {};
+      for (var k in res) stored[k] = res[k];
+      stored.flyer = null;
+      var prev = memo.details[id];
+      memo.details[id] = { res: stored, at: Date.now() };
+      var hasFlyer = res.hasFlyer != null ? res.hasFlyer : res.seminar.hasFlyer;
+      if (!hasFlyer && page.flyer === undefined) page.flyer = null;
+      if (hasFlyer) askFlyer();
+      if (cached && page.head) refreshDetailPage(page, prev ? prev.res : cached.res, stored);
+      else renderDetailPage(page, stored);
     }, function (err) {
       if (no !== state.detailNo) return;
+      if (cached) return; // 覚えている内容を出したまま
       box.innerHTML = '';
       box.appendChild(el('div', 'msg error', '読み込めませんでした：' + err));
     });
+  }
+
+  /** 表示中の月か、覚えている月にあるセミナー（見出しを先に出す・チラシの有無を知るため） */
+  function findKnown(id) {
+    var hit = state.seminars.filter(function (x) { return x.id === id; })[0];
+    Object.keys(memo.months).forEach(function (ym) {
+      if (!hit) hit = memo.months[ym].res.seminars.filter(function (x) { return x.id === id; })[0];
+    });
+    return hit || null;
+  }
+
+  function seminarOf(res) {
+    var s = {};
+    for (var k in res.seminar) s[k] = res.seminar[k];
+    s.count = (res.participants || []).length;
+    return s;
+  }
+
+  /** 詳細ページを描く：見出し → 住所・URL → チラシ → 申込フォーム（終了なら「終了」） → 参加者 */
+  function renderDetailPage(page, res) {
+    var box = page.box;
+    box.innerHTML = '';
+    var s = seminarOf(res);
+    page.s = s;
+    // #s=… を直接開いたとき：戻るとこのセミナーの月のカレンダー
+    if (state.loadedYm === null) state.ym = s.date.slice(0, 7);
+    page.head = renderDetailHead(box, s);
+    page.where = s.address ? box.appendChild(whereBox(s.address)) : null;
+    page.slot = box.appendChild(el('div'));
+    fillFlyer(page);
+    var participants = el('div', 'participants');
+    if (s.date < state.today) {
+      box.appendChild(el('div', 'ended', '終了'));
+    } else {
+      box.appendChild(applyForm(s, participants, res.teams || []));
+    }
+    renderParticipants(participants, res);
+    box.appendChild(participants);
+    page.participants = participants;
+    setCount(s.id, s.count);
+  }
+
+  /** 覚えている内容で描いたあと、取り直した結果で見出しと参加者だけ差し替える（申込フォームの入力は消さない） */
+  function refreshDetailPage(page, old, res) {
+    var s = seminarOf(res);
+    if (JSON.stringify(old.seminar) !== JSON.stringify(res.seminar) || s.count !== page.s.count) {
+      page.s = s;
+      var head = renderDetailHead(document.createDocumentFragment(), s);
+      page.head.replaceWith(head);
+      page.head = head;
+      var where = s.address ? whereBox(s.address) : null;
+      if (page.where) page.where.remove();
+      if (where) head.after(where);
+      page.where = where;
+    }
+    if (JSON.stringify(old.groups) !== JSON.stringify(res.groups) || JSON.stringify(old.participants) !== JSON.stringify(res.participants)) {
+      renderParticipants(page.participants, res);
+    }
+    setCount(s.id, s.count);
+  }
+
+  /** チラシの場所：取得中は「チラシを読み込み中…」の枠、届いたら画像に差し替える */
+  function fillFlyer(page) {
+    if (!page.slot) return;
+    var node;
+    if (typeof page.flyer === 'string') {
+      node = el('img', 'flyer');
+      node.alt = 'チラシ';
+      node.src = page.flyer;
+    } else if (page.flyer === undefined) {
+      node = el('div', 'no-flyer loading', 'チラシを読み込み中…');
+    } else {
+      node = el('div', 'no-flyer', page.flyer === false ? 'チラシを読み込めませんでした' : 'チラシ準備中');
+    }
+    page.slot.replaceWith(node);
+    page.slot = node;
+  }
+
+  /** 覚えているチラシ（10分より古いものは捨てて null） */
+  function keptFlyer(id) {
+    var f = memo.flyers[id];
+    if (f && Date.now() - f.at > FLYER_TTL) { forgetFlyer(id); f = null; }
+    return f || null;
+  }
+  function keepFlyer(id, flyer) {
+    forgetFlyer(id);
+    memo.flyers[id] = { flyer: flyer, at: Date.now() };
+    flyerOrder.push(id);
+    while (flyerOrder.length > FLYER_MAX) delete memo.flyers[flyerOrder.shift()];
+  }
+  function forgetFlyer(id) {
+    delete memo.flyers[id];
+    flyerOrder = flyerOrder.filter(function (x) { return x !== id; });
   }
 
   function renderDetailHead(box, s) {
@@ -317,6 +567,7 @@
     edit.addEventListener('click', function () { openEdit(s); });
     head.appendChild(edit);
     box.appendChild(head);
+    return head;
   }
 
   $('d-back').addEventListener('click', function () {
@@ -325,27 +576,6 @@
     clearHash(true);
     showCalendar();
   });
-
-  function renderDetail(body, s, detail) {
-    if (s.address) body.appendChild(whereBox(s.address));
-    if (detail.flyer) {
-      var img = el('img', 'flyer');
-      img.alt = 'チラシ';
-      img.src = detail.flyer;
-      body.appendChild(img);
-    } else {
-      body.appendChild(el('div', 'no-flyer', 'チラシ準備中'));
-    }
-
-    var participants = el('div', 'participants');
-    if (s.date < state.today) {
-      body.appendChild(el('div', 'ended', '終了'));
-    } else {
-      body.appendChild(applyForm(s, participants, detail.teams || []));
-    }
-    renderParticipants(participants, detail);
-    body.appendChild(participants);
-  }
 
   // ---- 使い方（#manual）。中身は index.html に書いてある。画像は loading="lazy" で開いたときに読む ----
   function showManual() {
@@ -509,7 +739,13 @@
       setMsg(msg, '送信中…');
       call('addParticipant', [s.id, name, team, intro], function (res) {
         btn.disabled = false;
-        if (res && res.groups) renderParticipants(participants, res);
+        if (res && res.groups) {
+          renderParticipants(participants, res);
+          // 覚えている詳細の参加者もそろえる（開き直したときに古い一覧を出さない）
+          state.applyNo++;
+          var d = memo.details[s.id];
+          if (d) { d.res.participants = res.participants; d.res.groups = res.groups; }
+        }
         if (!res || !res.ok) { setMsg(msg, (res && res.reason) || '申し込めませんでした', 'error'); return; }
         nameInput.value = '';
         teamSelect.value = '';
@@ -717,6 +953,7 @@
         return;
       }
       // 削除したセミナーの詳細（#s=…）の履歴は置き換えて、その月のカレンダーへ
+      forgetSeminar(editing.seminar.id);
       startForm(null);
       setMsg($('cal-msg'), '削除しました', 'ok');
       clearHash(true);
@@ -816,6 +1053,7 @@
         return;
       }
       // 登録・更新したセミナーの詳細ページへ。カレンダーは戻ったときに読み直す
+      if (editing) forgetSeminar(editing.seminar.id); else forgetMonths();
       startForm(null);
       state.monthDirty = true;
       state.flash = editing ? '更新しました' : '登録しました';

@@ -5,7 +5,41 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>磐田市倫理法人会 セミナーカレンダー</title>
 <link rel="icon" href="logo.png">
-<link rel="stylesheet" href="style.css?v=8">
+<!-- v5：API のサーバーへの接続を先に始めておく（fetch は資格情報なしの CORS なので crossorigin を付ける） -->
+<link rel="preconnect" href="https://script.google.com" crossorigin>
+<link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
+<link rel="stylesheet" href="style.css?v=9">
+<script src="config.js"></script>
+<script>
+// v5：最初の要求（今月の getMonth。#s=… なら getDetail と getFlyer）を app.js の読み込みを待たずに始める。
+// 結果の Promise を window.SEMINAR_EARLY に置き、app.js は年月・ID が合えば1回だけ使う。端末には何も保存しない
+(function () {
+  var url = window.SEMINAR_CONFIG && window.SEMINAR_CONFIG.apiUrl;
+  if (!url || !window.fetch || !window.Promise) return;
+  function post(api, args) {
+    var p = fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ api: api, args: args }),
+      redirect: 'follow'
+    }).then(function (res) {
+      if (!res.ok) throw new Error('通信に失敗しました（' + res.status + '）');
+      return res.json();
+    });
+    p['catch'](function () {}); // 使われなかったときにコンソールに出さない（使えば app.js が失敗を表示する）
+    return p;
+  }
+  var m = /^#s=(.+)$/.exec(location.hash);
+  if (m) {
+    var id;
+    try { id = decodeURIComponent(m[1]); } catch (e) { return; }
+    window.SEMINAR_EARLY = { key: id, getDetail: post('getDetail', [id, { flyer: false }]), getFlyer: post('getFlyer', [id]) };
+  } else if (location.hash !== '#manual') {
+    var ym = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()).slice(0, 7);
+    window.SEMINAR_EARLY = { key: ym, getMonth: post('getMonth', [ym]) };
+  }
+})();
+</script>
 </head>
 <body>
 <div class="wrap">
@@ -169,7 +203,6 @@
   </section>
 </div>
 
-<script src="config.js"></script>
-<script src="app.js?v=8"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>

@@ -144,6 +144,13 @@ a.link-btn {
 .card .count, .detail-head .count { font-size: 13px; color: #1e3a6e; }
 .flyer { width: 100%; height: auto; display: block; margin-top: 12px; border: 1px solid #e5e7eb; }
 .no-flyer { margin-top: 12px; padding: 24px 8px; text-align: center; background: #f3f4f6; color: #6b7280; border-radius: 6px; }
+/* チラシの取得中（v5）：チラシ（A4 縦）とだいたい同じ高さの枠を先に取り、届いたときに下の申込フォームが大きく動かないように */
+.no-flyer.loading { aspect-ratio: 210 / 297; display: flex; align-items: center; justify-content: center; }
+/* 一覧のカードの右上の「終了」（v5。詳細ページの「終了」と同じ色） */
+.card .ended-badge {
+  position: absolute; top: 8px; right: 8px;
+  padding: 2px 8px; border-radius: 6px; background: #eceff3; color: #4b5563; font-size: 12px; font-weight: bold; line-height: 1.5;
+}
 .ended { margin-top: 12px; padding: 12px; text-align: center; background: #eceff3; color: #4b5563; font-weight: bold; border-radius: 6px; }
 
 /* フォーム */
